@@ -1,0 +1,8 @@
+ <gui fullscreen='0'>
+      <camera name='user_camera'>
+        <pose>12.5972 -23.0593 21.1428 0 0.655645 2.1482</pose>
+        <view_controller>orbit</view_controller>
+      </camera>
+    </gui>
+  </world>
+</sdf>
