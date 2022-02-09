@@ -1,2 +1,2 @@
-# masther-thesis-miis
-Code of the miis masther thesis developements. 
+# master-thesis-miis
+Code of the miis master thesis developements. 
