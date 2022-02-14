@@ -2,7 +2,7 @@
     "name": "masther-thesis-miis",
     "dockerComposeFile": "../docker-compose.yaml",
     "service": "tamp-core",
-    "workspaceFolder": "/ros_ws/src/master-thesis-miis",
+    "workspaceFolder": "/ros_ws/src/ros-tamp",
     "shutdownAction": "stopCompose",
     "settings": {
         "terminal.integrated.shell.linux": "/bin/bash",
@@ -24,7 +24,6 @@
 		"ms-python.python",
 		"ms-vscode.cpptools",
 		"redhat.vscode-yaml",
-		"vscode-icons-team.vscode-icons",		
-		"jan-dolejsi.pddl"
+		"vscode-icons-team.vscode-icons"
 	]
 }

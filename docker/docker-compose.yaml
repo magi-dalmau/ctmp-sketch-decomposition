@@ -9,8 +9,8 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ~/.xauth_docker/share:/tmp/xauth
-      - ~/git/master-thesis-miis/:/ros_ws/src/master-thesis-miis/     
-      - /home/magi.dalmau/.config/Code/User/globalStorage/jan-dolejsi.pddl:/jan-dolejsi.pddl
+      - ~/git/master-thesis-miis/ros-tamp:/ros_ws/src/ros-tamp/     
+      #- /home/magi.dalmau/.config/Code/User/globalStorage/jan-dolejsi.pddl:/jan-dolejsi.pddl
     tty: true
     stdin_open: true
     environment:
