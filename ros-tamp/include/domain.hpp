@@ -1,13 +1,14 @@
+#pragma once
+
+// STD includes
 #include <vector>
+#include <string>
+#include <map>
 
-class Action;
-
-class State;
-
-class Goal {
-public:
-  virtual bool isGoal(const State &state) = 0;
-};
+// ros-tamp includes
+#include <agent.hpp>
+#include <goal.hpp>
+#include <state.hpp>
 
 class Problem {
 public:
@@ -17,7 +18,10 @@ public:
 
 class Domain {
 public:
-  virtual std::vector<Action> getValidActions(const State &state) = 0;
   virtual State getSuccessor(const Action &action, const State &state) = 0;
   virtual double actionCost(const Action &action) { return 1; };
+  std::map<std::string, std::vector<Action>> getValidActions(const State *state);
+
+protected:
+  std::vector<Agent> agents;
 };
