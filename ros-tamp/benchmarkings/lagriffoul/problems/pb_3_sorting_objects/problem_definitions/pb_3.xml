@@ -1,6 +1,5 @@
 <problem>
    <objects>
-
       <obj>
          <name>stick_blue1</name>
          <geom>stick_blue.obj</geom>
