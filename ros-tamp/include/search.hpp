@@ -21,8 +21,10 @@ public:
 
     while (node) {
       auto end = Process(node, plan);
+      AddToClose(node);
       if (end)
         return true;
+
       node = ExtractNode();
     }
 
@@ -75,32 +77,25 @@ protected:
     }
     return NULL;
   };
+  virtual void AddToOpen(Node *const node) = 0;
+  virtual Node *const FindNodeInOpen(Node *const node) = 0;
+  virtual void ManageDuplicateInOpen(Node *const node) = 0;
+  virtual Node *const ExtractNode() = 0; // Select Node, delete node from Open
+
+  virtual void AddToClose(Node *const node) = 0;
+  virtual Node *const FindNodeInClose(Node *const node) = 0;
+  virtual void ManageDuplicateInClose(Node *const node) = 0;
 
   virtual bool Prune(Node *const node) const { return false; }
 
-  virtual bool InOpen(Node *const node) const = 0;
-
-  virtual bool IsClosed(Node *const node) const = 0;
-
-  virtual bool AddToOpen(Node *const node) = 0;
-
-  virtual Node *const FindNodeInOpen(Node *const node) = 0;
-
-  virtual void ManageDuplicateInOpen(Node *const node) = 0;
-
-  virtual Node *const FindNodeInClose(Node *const node) = 0;
-
-  virtual void ManageDuplicateInClose(Node *const node) = 0;
-
-  virtual Node *const ExtractNode() = 0; // Select Node, delete node from Open
-
   virtual bool GetPlan(Plan &plan, Node *const goal) {
+    // TODO(magi.dalmau) Plan should copy states to be the memory owner
+
     plan.clear();
     Node *current_node = goal;
     plan.states.push_back(current_node->GetState());
-    plan.total_cost =
-        current_node->GetAccumulatedCost(); // TODO(magi.dalmau) think about if its necesary save individual action
-                                            // costs instead of only accumulated cost from roo to a certain node
+    plan.total_cost = current_node->GetAccumulatedCost();
+
     while (current_node != root_node_) {
 
       auto action = current_node->GetAction();
