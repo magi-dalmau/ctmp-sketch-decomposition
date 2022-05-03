@@ -1,0 +1,13 @@
+<launch>
+    
+    <!-- start node -->
+    
+    <node name="test_bfrs" pkg="ros_tamp" type="ros_tamp_test_brfs" output="screen">  
+     <param name="lazy" type="bool" value="true" />
+    </node>
+
+
+   
+
+
+</launch>

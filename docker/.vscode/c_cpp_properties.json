@@ -7,7 +7,7 @@
       },
       "includePath": [
         "/ros_ws/devel/include/**",
-        "/opt/ros/melodic/include/**",        
+        "/opt/ros/noetic/include/**",        
         "/usr/include/**"
       ],
       "name": "ROS"

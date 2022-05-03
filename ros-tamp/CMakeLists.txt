@@ -30,6 +30,10 @@ include_directories(
 )
 
 
-add_executable(${CMAKE_PROJECT_NAME}_test_node src/main.cpp) 
-add_dependencies(${CMAKE_PROJECT_NAME}_test_node ${catkin_EXPORTED_TARGETS} ${TinyXML_LIBRARIES})
-target_link_libraries(${CMAKE_PROJECT_NAME}_test_node ${catkin_LIBRARIES} ${TinyXML_LIBRARIES})
+#add_executable(${CMAKE_PROJECT_NAME}_test_node src/main.cpp) 
+#add_dependencies(${CMAKE_PROJECT_NAME}_test_node ${catkin_EXPORTED_TARGETS} ${TinyXML_LIBRARIES})
+#target_link_libraries(${CMAKE_PROJECT_NAME}_test_node ${catkin_LIBRARIES} ${TinyXML_LIBRARIES})
+
+add_executable(${CMAKE_PROJECT_NAME}_test_brfs src/test_brfs.cpp) 
+add_dependencies(${CMAKE_PROJECT_NAME}_test_brfs ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${CMAKE_PROJECT_NAME}_test_brfs ${catkin_LIBRARIES})
