@@ -1,44 +1,31 @@
-FROM ubuntu:20.04
-RUN apt-get update && apt-get install -y \
-    wget \
-    git \
-    bash-completion \
-    build-essential \
-    sudo \
-    python3-pip \    
-    && rm -rf /var/lib/apt/lists/*
+FROM eut-moveit:dev-noetic-task-constructor
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \    
+    python3-pip     
+   
     
 #Install tamp-core python dependencies
 RUN pip3 install matplotlib    
 
-# Install ROS Noetic
-RUN apt-get update &&  apt-get install -y \
-curl \
-sudo \
-lsb-release
-RUN /bin/bash -c 'echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main" > /etc/apt/sources.list.d/ros-latest.list'
-RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
+#Install ros tamp-core ros dependencies (not included in the basic eut-ros-noetic image)
 RUN apt-get update &&  \
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-ros-noetic-ros-base \
-python3-catkin-tools \
-#ros-noetic-image-transport \
-#ros-noetic-image-geometry \
-#ros-noetic-pcl-ros \
-#ros-noetic-cv-bridge \
-ros-noetic-eigen-conversions \
-ros-noetic-tf-conversions \
-ros-noetic-kdl-parser \
-&& rm -rf /var/lib/apt/lists/*
+ros-noetic-kdl-parser 
 
-# Prepare ROS workspace
-RUN mkdir -p /ros_ws/src
-WORKDIR /ros_ws/src
+#Download Tiago related packages
+WORKDIR ros_ws/src
+RUN git clone https://github.com/pal-robotics/tiago_robot.git
+RUN git clone https://github.com/pal-robotics/tiago_description_calibration.git
+RUN git clone https://github.com/pal-robotics/pmb2_robot.git
+RUN git clone https://github.com/pal-robotics/hey5_description.git
+RUN git clone https://github.com/pal-robotics/pal_gripper.git
+RUN git clone https://github.com/pal-robotics/tiago_moveit_config.git 
+
+#Build the updated ros workspace
 WORKDIR /ros_ws
 RUN /bin/bash -c "source /opt/ros/noetic/setup.bash; catkin build"
 
-# Add source to bashrc
-RUN echo "" >> ~/.bashrc
-RUN echo "## ROS" >> ~/.bashrc
-RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
-RUN echo "source /ros_ws/devel/setup.bash" >> ~/.bashrc
+# Remove apt cache
+RUN rm -rf /var/lib/apt/lists/*
+
+

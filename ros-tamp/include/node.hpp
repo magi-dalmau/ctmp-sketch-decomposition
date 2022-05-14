@@ -1,4 +1,4 @@
-#pragma once
+#pragma once;
 #include <action.hpp>
 #include <limits>
 #include <queue>
@@ -18,38 +18,13 @@ public:
     AddParent(parent, action, action_cost);
     connected_goal_ = nullptr;
   };
-  ~Node() {
-    delete state_;
-    while (!edges_.empty()) {
-      auto edge = edges_.top();
-      edges_.pop();
-      delete edge.action;
-    }
-  }
+  ~Node() { delete state_; }
 
   // FUNCTIONS
   void AddParent(Node *const parent, Action const *const action, double action_cost) {
-    if (!is_root_) {
-      const double old_accumulated_cost = GetAccumulatedCost();
-      if (GetParent()) {
-        std::cout << "Parent of " << *state_ << " with acc cost " << old_accumulated_cost << " is "
-                  << *GetParent()->GetState() << std::endl;
-      } else {
-        std::cout << *state_ << " with acc cost " << old_accumulated_cost << " has no parent" << std::endl;
-      }
 
-      Edge edge = {parent, action, action_cost, action_cost + parent->GetAccumulatedCost(), false};
-      edges_.push(edge);
-
-      const double new_accumulated_cost = GetAccumulatedCost();
-      std::cout << "Parent of " << *state_ << " with acc cost " << new_accumulated_cost << " is "
-                << *GetParent()->GetState() << std::endl;
-      if (old_accumulated_cost != new_accumulated_cost) {
-        for (auto &successor : successors_) {
-          successor->UpdateEdgeCost(this, new_accumulated_cost);
-        }
-      }
-    }
+    Edge edge = {parent, action, action_cost, action_cost + parent->GetAccumulatedCost()};
+    edges_.push(edge);
   };
 
   void RemoveParent() {
@@ -65,25 +40,6 @@ public:
     }
     // TODO(magi.dalmau) gestionar excepcio no hi havia parents
   };
-
-  Node *const GetParent() const {
-    if (!edges_.empty()) {
-      return edges_.top().parent;
-    } else {
-      return nullptr;
-    }
-  };
-
-  void ConfirmParent() {
-    if (!edges_.empty()) {
-      auto edge = edges_.top();
-      edges_.pop();
-      edge.non_lazy_validated = true;
-      edges_.push(edge);
-    }
-  }
-
-  bool IsParentConfirmed() const { return edges_.top().non_lazy_validated; }
 
   void UpdateEdgeCost(const Node *const parent, double new_parent_cost) {
 
@@ -111,9 +67,13 @@ public:
     }
   }
 
-  void AddSuccessor(Node *const successor) {
-    if (!successor->is_root_) {
-      successors_.push_back(successor);
+  void AddSuccessor(Node *const successor) { successors_.push_back(successor); };
+
+  Node *const GetParent() const {
+    if (edges_.size() > 0) {
+      return edges_.top().parent;
+    } else {
+      return nullptr;
     }
   };
 
@@ -136,20 +96,9 @@ public:
     }
   };
 
-  double GetActionCost() const {
-    if (is_root_) {
-      return 0.0;
-    }
-    if (edges_.size() > 0) {
-      return edges_.top().action_cost;
-    } else {
-      return std::numeric_limits<double>::infinity();
-    }
-  };
-
   State const *const GetState() const { return state_; }
 
-  // std::vector<Node *const> GetSuccessors() const { return successors_; }
+  std::vector<Node *const> GetSuccessors() { return successors_; }
 
   void SetConnectedGoal(Node *goal) { connected_goal_ = goal; }
 
@@ -157,32 +106,15 @@ public:
 
 protected:
   struct Edge {
-    // Node *const parent;
-    // Action const *const action;
-    // TODO(magi.dalmau) solve const problem
-    Node *parent;
-    Action const *action;
+    Node *const parent;
+    Action const *const action;
     double action_cost;
     double acumulated_cost;
-    bool non_lazy_validated;
-    // bool operator<(const Edge &rhs) { return acumulated_cost < rhs.acumulated_cost; }
+    bool operator<(const Edge &rhs) { return acumulated_cost < rhs.acumulated_cost; }
   };
-  class Compare {
-  public:
-    bool operator()(const Edge &lhs, const Edge &rhs) { return lhs.acumulated_cost > rhs.acumulated_cost; }
-  };
-
   bool is_root_;
   State const *const state_;
-  std::priority_queue<Edge, std::vector<Edge>, Compare> edges_;
-  // std::vector<Node *const> successors_;
-  // TODO(magi.dalmau) Solve vector of const pointers problem
-  std::vector<Node *> successors_;
+  std::priority_queue<Edge, std::vector<Edge>, std::less<Edge>> edges_;
+  std::vector<Node *const> successors_;
   Node *connected_goal_;
 };
-
-namespace std {
-template <> struct hash<Node> {
-  size_t operator()(const Node &node) const { return node.GetState()->GetHash(); }
-};
-} // namespace std

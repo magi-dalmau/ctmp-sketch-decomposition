@@ -3,6 +3,7 @@
 #include <random>
 #include <ros/ros.h>
 
+
 template <class T> inline void hash_combine(std::size_t &s, const T &v) {
   std::hash<T> h;
   s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
@@ -69,7 +70,7 @@ public:
     actions_.push_back(new MyAction(MyAction::LEFT));
   };
 
-  virtual State *const start() { return new MyState(start_coords_.first, start_coords_.second); };
+  virtual State *const Start() { return new MyState(start_coords_.first, start_coords_.second); };
 
   virtual bool IsGoal(State const *const state) const {
     const MyState *my_state = dynamic_cast<const MyState *>(state);

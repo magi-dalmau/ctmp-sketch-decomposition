@@ -1,0 +1,20 @@
+<launch>
+
+
+    <!-- <include file="$(find tiago_moveit_config)/launch/demo.launch">
+        <arg name="load_robot_description" value="true" />
+        <arg name="end_effector" value="pal-gripper" />
+
+    </include> -->
+   
+    <!-- start node -->
+    <node name="test_tiago_problem" pkg="ros_tamp" type="ros_tamp_test_tiago_problem" output="screen">
+        <param name="lazy" type="bool" value="true" />
+        <param name="planning_group" type="string" value="arm_torso" />
+        <rosparam command="load" file="$(find tiago_moveit_config)/config/kinematics_kdl.yaml" />
+    </node>
+
+    <node name="world_base_footprint" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 1.0 world base_footprint 100" />
+    <node name="base_footprint_obj" pkg="tf" type="static_transform_publisher" args="0.5 0.5 1 0 0 0 1.0  base_footprint obj 100" />
+
+</launch>

@@ -5,7 +5,7 @@ services:
     container_name: "tamp-core"
     #ports:
      # - "6603:3306" 
-    image: tamp-core-dev-img:latest
+    image: tamp-core-dev-img:latest    
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ~/.xauth_docker/share:/tmp/xauth
@@ -19,27 +19,29 @@ services:
       - XAUTHORITY=/tmp/xauth/.docker.xauth     
     networks:
       - ros_network
-
-
-  tiago-melodic:
-    #network_mode: host   
-    container_name: "tiago-melodic"
-    privileged: true
-    image: palroboticssl/tiago_tutorials:melodic
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ~/.xauth_docker/share:/tmp/xauth
-      - ~/git/masther-thesis-miis/benchmarkings/:/benchmarkings/ 
-    tty: true
-    stdin_open: true
-    environment:
-      - DISPLAY=$DISPLAY
-      - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=/tmp/xauth/.docker.xauth        
     devices:
       - /dev/dri:/dev/dri
-    networks:
-      - ros_network
+
+
+  #tiago-melodic:
+   # #network_mode: host   
+   # container_name: "tiago-melodic"
+   # privileged: true
+   # image: palroboticssl/tiago_tutorials:melodic
+   # volumes:
+   #   - /tmp/.X11-unix:/tmp/.X11-unix:rw
+   #   - ~/.xauth_docker/share:/tmp/xauth
+   #   - ~/git/masther-thesis-miis/benchmarkings/:/benchmarkings/ 
+   # tty: true
+   # stdin_open: true
+   # environment:
+   #   - DISPLAY=$DISPLAY
+   #   - QT_X11_NO_MITSHM=1
+   #   - XAUTHORITY=/tmp/xauth/.docker.xauth        
+   # devices:
+   #   - /dev/dri:/dev/dri
+   # networks:
+   #   - ros_network
       
 networks:
   ros_network:

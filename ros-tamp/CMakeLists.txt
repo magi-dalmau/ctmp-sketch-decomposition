@@ -7,29 +7,48 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   cmake_modules
+  interactive_markers
+  moveit_core
+  moveit_ros_planning
+  moveit_ros_planning_interface
+  rviz_visual_tools
+  moveit_visual_tools
+  geometric_shapes
+  tf2_ros
+  tf2_eigen
+  tf2_geometry_msgs
+  sensor_msgs
 )
 
 find_package(TinyXML REQUIRED)
 
-find_package(Eigen REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 catkin_package(
   CATKIN_DEPENDS 
     roscpp
+    moveit_core
+    moveit_visual_tools
+    moveit_ros_planning_interface
+    interactive_markers
+    tf2_geometry_msgs
+    sensor_msgs
   INCLUDE_DIRS
     include
   DEPENDS
     TinyXML
+    EIGEN3
 )
 
 include_directories(
 	include
   ${catkin_INCLUDE_DIRS}
   ${TinyXML_INCLUDE_DIRS}
-  ${Eigen_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
 )
 
 
+<<<<<<< HEAD
 #add_executable(${CMAKE_PROJECT_NAME}_test_node src/main.cpp) 
 #add_dependencies(${CMAKE_PROJECT_NAME}_test_node ${catkin_EXPORTED_TARGETS} ${TinyXML_LIBRARIES})
 #target_link_libraries(${CMAKE_PROJECT_NAME}_test_node ${catkin_LIBRARIES} ${TinyXML_LIBRARIES})
@@ -37,3 +56,12 @@ include_directories(
 add_executable(${CMAKE_PROJECT_NAME}_test_brfs src/test_brfs.cpp) 
 add_dependencies(${CMAKE_PROJECT_NAME}_test_brfs ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${CMAKE_PROJECT_NAME}_test_brfs ${catkin_LIBRARIES})
+
+add_executable(${CMAKE_PROJECT_NAME}_test_tiago_problem src/test_tiago_problem.cpp  src/moveit_tamp_problem.cpp) 
+add_dependencies(${CMAKE_PROJECT_NAME}_test_tiago_problem ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${CMAKE_PROJECT_NAME}_test_tiago_problem ${catkin_LIBRARIES})
+=======
+add_executable(${CMAKE_PROJECT_NAME}_test_node src/main.cpp) 
+add_dependencies(${CMAKE_PROJECT_NAME}_test_node ${catkin_EXPORTED_TARGETS} ${TinyXML_LIBRARIES})
+target_link_libraries(${CMAKE_PROJECT_NAME}_test_node ${catkin_LIBRARIES} ${TinyXML_LIBRARIES})
+>>>>>>> parent of 2676092... Implemented and tested Lazy Brfs
