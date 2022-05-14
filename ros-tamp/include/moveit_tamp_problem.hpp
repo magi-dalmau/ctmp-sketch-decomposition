@@ -21,9 +21,9 @@ class MoveitTampProblem : public Problem {
 
 public:
   MoveitTampProblem(const std::string &planning_group, ros::NodeHandle *nodehandle);
-  virtual State *const Start(){};
-  virtual bool IsGoal(State const *const state) const {};
-  virtual std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) {}
+  virtual State *const Start() {return nullptr;};
+  virtual bool IsGoal(State const *const state) const {return false;};
+  virtual std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) {return std::vector<Action *>(); }
 
   virtual bool IsActionValid(State const *const state, Action const *const action, bool lazy = false) {
     // Checks always:
@@ -41,7 +41,7 @@ public:
 
     return true;
   };
-  virtual State *const GetSuccessor(State const *const state, Action const *const action){};
+  virtual State *const GetSuccessor(State const *const state, Action const *const action){ return nullptr;};
   // virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
 
   virtual void print(std::ostream &os) const override{};

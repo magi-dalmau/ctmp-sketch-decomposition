@@ -1,6 +1,6 @@
-<<<<<<< HEAD
 #pragma once
 #include <iostream>
+
 class Action {
 public:
   virtual Action *Clone() const = 0;
@@ -11,6 +11,3 @@ public:
     return os;
   }
 };
-=======
-class Action;
->>>>>>> parent of 2676092... Implemented and tested Lazy Brfs

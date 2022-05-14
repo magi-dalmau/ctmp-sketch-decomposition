@@ -1,22 +1,29 @@
 #include <Eigen/Geometry>
 #include <boost/algorithm/string.hpp>
 #include <chrono>
+#include <eigen_conversions/eigen_msg.h>
+#include <geometry_msgs/PoseArray.h>
 #include <iostream>
 #include <map>
 #include <random>
+#include <ros/ros.h>
 #include <tinyxml.h>
 #include <vector>
+#include <visualization_msgs/MarkerArray.h>
 
 class BaseStateSpace {
+public:
   bool isValid(double x, double y, double yaw) const {
     return isfinite(x) && (x >= x_min) && (x <= x_max) && isfinite(y) && (y >= y_min) && (y <= y_max) && isfinite(yaw);
   }
   double x_min, y_min, x_max, y_max;
-}
+};
 
 class Object {
 public:
   Object(const Eigen::Affine3d &object_pose) : pose(object_pose){};
+  std::string name;
+  std::string mesh;
   Eigen::Affine3d pose;
 };
 
@@ -95,6 +102,13 @@ public:
 };
 
 int main(int argc, char **argv) {
+  ros::init(argc, argv, "parser");
+  ros::NodeHandle nh;
+  ros::Publisher pub_placements = nh.advertise<geometry_msgs::PoseArray>("placements", 0, true);
+  ros::Publisher pub_locations = nh.advertise<geometry_msgs::PoseArray>("locations", 0, true);
+  ros::Publisher pub_surfaces = nh.advertise<visualization_msgs::MarkerArray>("surfaces", 0, true);
+  ros::Rate rate(10);
+
   const std::string filename =
       "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_3_sorting_objects/problem_definitions/pb_3.xml";
   TiXmlDocument doc(filename);
@@ -106,6 +120,7 @@ int main(int argc, char **argv) {
 
   std::map<std::string, Object> objects;
   std::map<std::string, std::vector<SupportingSurface>> surfaces;
+  visualization_msgs::MarkerArray marker_array;
 
   TiXmlHandle h_doc(&doc);
   for (auto obj = h_doc.FirstChildElement("problem").FirstChildElement("objects").FirstChildElement("obj").ToElement();
@@ -129,6 +144,35 @@ int main(int argc, char **argv) {
         const double y_max = std::stod(sssp->FirstChildElement("ymax")->GetText());
         const double z = std::stod(sssp->FirstChildElement("zmin")->GetText());
         surfaces[name].push_back(SupportingSurface(x_min, x_max, y_min, y_max, pose * Eigen::Translation3d(0, 0, z)));
+
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = "world";
+        marker.ns = "surfaces";
+        marker.id = marker_array.markers.size();
+        marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        tf::poseEigenToMsg(pose * Eigen::Translation3d(0, 0, z), marker.pose);
+        marker.scale.x = 1;
+        marker.scale.y = 1;
+        marker.scale.z = 1;
+        marker.color.r = 1;
+        marker.color.g = 1;
+        marker.color.b = 0;
+        marker.color.a = 1;
+        geometry_msgs::Point point;
+        point.x = x_min;
+        point.y = y_min;
+        marker.points.push_back(point);
+        point.x = x_max;
+        marker.points.push_back(point);
+        point.y = y_max;
+        marker.points.push_back(point);
+        marker.points.push_back(point);
+        point.x = x_min;
+        marker.points.push_back(point);
+        point.y = y_min;
+        marker.points.push_back(point);
+        marker_array.markers.push_back(marker);
       }
       if (obj->FirstChildElement("attachments")) {
         for (auto attachment = obj->FirstChildElement("attachments")->FirstChildElement("name"); attachment;
@@ -166,7 +210,7 @@ int main(int argc, char **argv) {
   std::default_random_engine generator(seed);
 
   std::vector<double> weights(num_surfaces);
-  for (unsigned int k = 0; k < 50; ++k) {
+  for (unsigned int k = 0; k < (400 - 2 * 14); ++k) {
     unsigned int i = 0;
     for (const auto &surface_set : surfaces)
       for (const auto &surface : surface_set.second) {
@@ -194,20 +238,74 @@ int main(int argc, char **argv) {
   base_space.y_max = 2.5;
   double dist = 0.5;
 
+  geometry_msgs::PoseArray locations;
+  locations.header.frame_id = "world";
+  while (locations.poses.size() < 100) {
+    for (const auto &surface_set : surfaces) {
+      for (const auto &surface : surface_set.second) {
+        std::vector<double> weights(4);
+        weights.at(0) = weights.at(2) = surface.max(0) - surface.min(0);
+        weights.at(1) = weights.at(3) = surface.max(1) - surface.min(1);
+        std::discrete_distribution<std::size_t> disc_distr(weights.begin(), weights.end());
+        std::uniform_real_distribution<double> unif_distr;
+        std::normal_distribution<double> normal_distr;
+        unsigned int i = disc_distr(generator);
+        double u = unif_distr(generator);
+        double z = normal_distr(generator);
+
+        double x, y, yaw;
+        if (i == 0) {
+          x = surface.min(0) * u + surface.max(0) * (1 - u);
+          y = surface.max(1) + dist + (0.5 * 0.1) * z;
+          yaw = 1.5 * M_PI + (0.5 * 30. / 180. * M_PI) * z;
+        } else if (i == 1) {
+          x = surface.max(0) + (dist + (0.5 * 0.1) * z);
+          y = surface.min(1) * u + surface.max(1) * (1 - u);
+          yaw = M_PI + (0.5 * 30. / 180. * M_PI) * z;
+        } else if (i == 2) {
+          x = surface.min(0) * u + surface.max(0) * (1 - u);
+          y = surface.min(1) - (dist + (0.5 * 0.1) * z);
+          yaw = 0.5 * M_PI + (0.5 * 30. / 180. * M_PI) * z;
+        } else {
+          x = surface.min(0) - (dist + (0.5 * 0.1) * z);
+          y = surface.min(1) * u + surface.max(1) * (1 - u);
+          yaw = 0 + (0.5 * 30. / 180. * M_PI) * z;
+        }
+        Eigen::Affine3d affine =
+            surface.pose * Eigen::Translation3d(x, y, 0) * Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
+        x = affine.translation()(0);
+        y = affine.translation()(1);
+        affine.translation()(2) = 0;
+        yaw = Eigen::AngleAxisd(affine.rotation()).angle();
+        if (base_space.isValid(x, y, yaw)) {
+          geometry_msgs::Pose pose;
+          tf::poseEigenToMsg(affine, pose);
+          locations.poses.push_back(pose);
+        }
+      }
+    }
+  }
+
+  geometry_msgs::PoseArray placements;
+  placements.header.frame_id = "world";
   for (const auto &surface_set : surfaces) {
     for (const auto &surface : surface_set.second) {
-      std::vector<double> weights(4);
-      weights(0) = weights(2) = surface.max(0) - surface.min(0);
-      weights(1) = weights(3) = surface.max(1) - surface.min(1);
-      std::discrete_distribution<std::size_t> disc_distr(weights.begin(), weights.end());
-      std::uniform_real_distribution<double> unif_distr;
-      std::normal_distribution<double> normal_distr;
-      unsigned int i = disc_distr(generator);
-      double u = unif_distr(generator);
-      double z = normal_distr(generator);
-      Eigen::Vector3d pos;
-
+      for (const auto &placement : surface.placements) {
+        geometry_msgs::Pose pose;
+        tf::poseEigenToMsg(placement, pose);
+        placements.poses.push_back(pose);
+      }
     }
+  }
+
+  while (ros::ok()) {
+    pub_placements.publish(placements);
+    pub_locations.publish(locations);
+    pub_surfaces.publish(marker_array);
+
+    ros::spinOnce();
+
+    rate.sleep();
   }
 
   return 0;

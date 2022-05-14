@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
   auto brfs = new BrFS(problem);
 
   Plan plan;
-  if (brfs->solve(plan, lazy)) {
+  if (brfs->Solve(plan, lazy)) {
     std::cout << "Found solution" << std::endl;
     std::cout << plan << std::endl;
   } else {

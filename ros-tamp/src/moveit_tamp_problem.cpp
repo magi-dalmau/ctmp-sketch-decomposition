@@ -100,7 +100,9 @@ bool MoveitTampProblem::PlanToJoinTarget(const moveit_msgs::RobotState::_joint_s
 
 bool MoveitTampProblem::ExecutePlan(moveit::planning_interface::MoveGroupInterface::Plan &plan) {
   ROS_DEBUG_STREAM("Plan will be executed now");
-  move_group_interface_.execute(plan);
+  auto result = move_group_interface_.execute(plan);
+  ROS_DEBUG_STREAM("Plan returned " << result);
+  return (result == result.SUCCESS);
 }
 
 void MoveitTampProblem::MoveCollisionObjects(const std::vector<std::string> &obj_ids,
