@@ -18,7 +18,9 @@ int main(int argc, char **argv) {
   // moveit::planning_interface::MoveGroupInterface move_group_interface(planning_group);
 
   std::cout << "The problem will be initialized" << std::endl;
-  auto problem = new MoveitTampProblem(planning_group, &nh);
+  const std::string filename =
+      "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_3_sorting_objects/problem_definitions/pb_3.xml";
+  auto problem = new MoveitTampProblem(filename, planning_group, &nh);
   // problem->checkIk();
   // problem->isValidConfig();
   moveit::planning_interface::MoveGroupInterface::Plan plan;

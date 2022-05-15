@@ -4,6 +4,7 @@
 #include <problem.hpp>
 
 // ROS
+
 #include <geometry_msgs/Pose.h>
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
@@ -13,17 +14,24 @@
 #include <moveit/robot_state/robot_state.h>
 #include <moveit_msgs/GetPositionIK.h>
 
+#include <geometry_msgs/PoseArray.h>
 #include <ros/ros.h>
+#include <visualization_msgs/MarkerArray.h>
+
 // Generic CPP
 #include <iostream>
 
 class MoveitTampProblem : public Problem {
 
 public:
-  MoveitTampProblem(const std::string &planning_group, ros::NodeHandle *nodehandle);
-  virtual State *const Start() {return nullptr;};
-  virtual bool IsGoal(State const *const state) const {return false;};
-  virtual std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) {return std::vector<Action *>(); }
+  MoveitTampProblem(const std::string &filename, const std::string &planning_group, ros::NodeHandle *nodehandle);
+  virtual State *const Start() { return nullptr; };
+  virtual bool IsGoal(State const *const state) const { return false; };
+  virtual std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) {
+    return std::vector<Action *>();
+  }
+
+  virtual ~MoveitTampProblem();
 
   virtual bool IsActionValid(State const *const state, Action const *const action, bool lazy = false) {
     // Checks always:
@@ -32,25 +40,25 @@ public:
     // (End-effector collision-free)
     // IK solution exists
     // Pick/place/Home configuration collision-free
-    
-    if(!lazy){
+
+    if (!lazy) {
       // In addition, checks if non-lazy:
       // Plans the trajectory
-      
     }
 
     return true;
   };
-  virtual State *const GetSuccessor(State const *const state, Action const *const action){ return nullptr;};
+
+  virtual State *const GetSuccessor(State const *const state, Action const *const action) { return nullptr; };
   // virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
 
   virtual void print(std::ostream &os) const override{};
 
-  virtual std::size_t GetNovelty(State const *const state) { return 0; };
+  virtual std::size_t GetNovelty(State const *const state) const override { return 0; };
 
 protected:
   // METHODS
-
+  void LoadWorld(const std::string &filename);
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal);
 
   bool PlanToJoinTarget(const moveit_msgs::RobotState::_joint_state_type &joint_goal,
@@ -63,16 +71,56 @@ protected:
   void MoveCollisionObject(const std::string &obj_id, const geometry_msgs::Pose &new_pose);
   moveit_msgs::CollisionObject GenerateMoveCollisionObjectMsg(const std::string &obj_id,
                                                               const geometry_msgs::Pose &new_pose);
-
+  shape_msgs::Mesh MeshMsgFromFile(const std::string &mesh_path);
   void AddTestCollision(); // TEST ONLY
+
+  void Publish(const ros::TimerEvent &event);
+
+  class BaseStateSpace {
+  public:
+    bool isValid(double x, double y, double yaw) const {
+      return isfinite(x) && (x >= x_min) && (x <= x_max) && isfinite(y) && (y >= y_min) && (y <= y_max) &&
+             isfinite(yaw);
+    }
+    double x_min, y_min, x_max, y_max;
+  };
+
+  class SupportingSurface {
+  public:
+    SupportingSurface(double x_min, double x_max, double y_min, double y_max, const Eigen::Affine3d &surface_pose);
+    Eigen::Affine3d pose_;
+    Eigen::Vector2d min_, max_;
+    std::vector<Eigen::Affine3d> placements_;
+    double area() const;
+    bool on(const Eigen::Vector3d &position) const;
+    void sample();
+  };
+
+  class Object {
+  public:
+    std::string name_;
+    std::string mesh_;
+    Eigen::Affine3d pose_;
+    bool moveable_;
+    std::vector<SupportingSurface> surfaces_;
+  };
 
   // OBJECTS
   ros::NodeHandle nh_;
+  ros::Publisher pub_placements_;
+  ros::Publisher pub_locations_;
+  ros::Publisher pub_objects_;
+  ros::Timer display_timer_;
+  geometry_msgs::PoseArray display_placements_;
+  geometry_msgs::PoseArray display_locations_;
+  visualization_msgs::MarkerArray display_objects_;
+  std::map<std::string, Object> objects_;
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
   ros::ServiceClient ik_service_client_;
   std::vector<std::string> group_joint_names_;
   std::size_t num_group_joints_;
   std::string robot_root_tf_;
+  std::string common_reference_;
   moveit_msgs::GetPositionIK srv_;
 };

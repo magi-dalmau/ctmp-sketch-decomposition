@@ -5,11 +5,11 @@ class IWk : public BrFS {
 public:
   IWk(Problem *const problem, const std::size_t k_max = 2) : BrFS(problem), k_max_(k_max){};
 
-  virtual bool solve(Plan &plan, bool lazy = false) override {
+  virtual bool Solve(Plan &plan, bool lazy = false) override {
     k_ = 0;
     while (k_ < k_max_) {
       smallest_exceeded_novelty_ = k_max_;
-      if (BrFS::solve(plan, lazy)) {
+      if (BrFS::Solve(plan, lazy)) {
         return true;
       }
       if (smallest_exceeded_novelty_ <= k_) {

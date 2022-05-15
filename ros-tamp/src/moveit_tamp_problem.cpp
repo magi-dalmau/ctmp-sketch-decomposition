@@ -1,19 +1,228 @@
+#include <Eigen/Geometry>
+#include <boost/algorithm/string.hpp>
+#include <chrono>
+#include <eigen_conversions/eigen_msg.h>
+#include <geometric_shapes/mesh_operations.h>
+#include <geometric_shapes/shape_operations.h>
+#include <geometric_shapes/shapes.h>
+#include <iostream>
+#include <map>
 #include <moveit_tamp_problem.hpp>
+#include <random>
+#include <regex>
+#include <ros/ros.h>
+#include <tinyxml.h>
+#include <vector>
 
-MoveitTampProblem::MoveitTampProblem(const std::string &planning_group, ros::NodeHandle *nodehandle)
-    : nh_(*nodehandle), move_group_interface_(moveit::planning_interface::MoveGroupInterface(planning_group)) {
-  std::cout << "INITIALIZING PROBLEM" << std::endl;
+// Main class methods
+MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::string &planning_group,
+                                     ros::NodeHandle *nodehandle)
+    : nh_(*nodehandle), pub_placements_(nh_.advertise<geometry_msgs::PoseArray>("placements", 0, true)),
+      pub_locations_(nh_.advertise<geometry_msgs::PoseArray>("locations", 0, true)),
+      pub_objects_(nh_.advertise<visualization_msgs::MarkerArray>("objects", 0, true)),
+      move_group_interface_(moveit::planning_interface::MoveGroupInterface(planning_group)) {
+
+  ROS_DEBUG("INITIALIZING PROBLEM");
+  // initialize actions
   actions_.push_back(new MoveitTampAction(MoveitTampAction::PICK));
   actions_.push_back(new MoveitTampAction(MoveitTampAction::PLACE));
   actions_.push_back(new MoveitTampAction(MoveitTampAction::MOVE_BASE));
   ik_service_client_ = nh_.serviceClient<moveit_msgs::GetPositionIK>("/compute_ik");
-
+  // Initialize moveit related objects
   group_joint_names_ = move_group_interface_.getJointNames();
   num_group_joints_ = group_joint_names_.size();
-  robot_root_tf_ = "base_footprint";
+  robot_root_tf_ = "base_footprint"; // TODO: obtain robot root tf automatically?
+  common_reference_ = nh_.param("common_reference", std::string("world"));
   std::cout << "Planning frame is: " << move_group_interface_.getPlanningFrame() << std::endl;
   InitIKRequest();
-  std::cout << "FINSIH CONSTRUCTOR" << std::endl;
+
+  // Load world
+  LoadWorld(filename);
+
+  ROS_DEBUG("PROBLEM INITIALIZED");
+}
+
+MoveitTampProblem::~MoveitTampProblem() { display_timer_.stop(); }
+
+void MoveitTampProblem::LoadWorld(const std::string &filename) {
+  std::map<std::string, shape_msgs::Mesh> meshes_map;
+  std::vector<moveit_msgs::CollisionObject> vector_collision_objects;
+  moveit_msgs::CollisionObject collision_object;
+  collision_object.operation = moveit_msgs::CollisionObject::ADD;
+  collision_object.header.frame_id = common_reference_;
+  collision_object.meshes.resize(1);
+  geometry_msgs::Pose origin_mesh;
+  origin_mesh.orientation.x = 0;
+  origin_mesh.orientation.y = 0;
+  origin_mesh.orientation.z = 0;
+  origin_mesh.orientation.w = 1;
+  origin_mesh.position.x = 0;
+  origin_mesh.position.y = 0;
+  origin_mesh.position.z = 0;
+  collision_object.mesh_poses.push_back(origin_mesh);
+
+  TiXmlDocument doc(filename);
+  doc.LoadFile();
+  if (!doc.LoadFile()) {
+    ROS_ERROR("Failed to load file [%s] with error %s.", filename.c_str(), doc.ErrorDesc());
+    throw std::runtime_error("Failed to load file [" + filename + "] with error " + doc.ErrorDesc() + ".");
+  }
+
+  // Lambda function string ('true' or '1') to bool
+  auto string2bool = [](const std::string &str) {
+    return boost::algorithm::to_lower_copy(str).compare("true") == 0 || str.compare("1") == 0;
+  };
+
+  TiXmlHandle h_doc(&doc);
+  for (auto obj = h_doc.FirstChildElement("problem").FirstChildElement("objects").FirstChildElement("obj").ToElement();
+       obj; obj = obj->NextSiblingElement("obj"))
+
+  {
+    Object object;
+    object.name_ = obj->FirstChildElement("name")->GetText();
+    object.mesh_ = obj->FirstChildElement("geom")->GetText();
+    std::vector<std::string> values;
+    boost::split(values, std::string(obj->FirstChildElement("pose")->GetText()), boost::is_any_of(" "));
+    for (unsigned int i = 0; i < 3; ++i)
+      for (unsigned int j = 0; j < 4; ++j)
+        object.pose_.matrix()(i, j) = std::stod(values.at(i * 4 + j));
+    object.moveable_ = string2bool(obj->FirstChildElement("moveable")->GetText());
+
+    for (auto sssp = obj->FirstChildElement("sssp"); sssp; sssp = sssp->NextSiblingElement("sssp")) {
+      const double x_min = std::stod(sssp->FirstChildElement("xmin")->GetText());
+      const double x_max = std::stod(sssp->FirstChildElement("xmax")->GetText());
+      const double y_min = std::stod(sssp->FirstChildElement("ymin")->GetText());
+      const double y_max = std::stod(sssp->FirstChildElement("ymax")->GetText());
+      const double z = std::stod(sssp->FirstChildElement("zmin")->GetText());
+
+      object.surfaces_.push_back(
+          SupportingSurface(x_min, x_max, y_min, y_max, Eigen::Affine3d(Eigen::Translation3d(0, 0, z))));
+
+      visualization_msgs::Marker display_surface;
+      display_surface.header.frame_id = "world";
+      display_surface.ns = "surfaces";
+      display_surface.id = display_objects_.markers.size();
+      display_surface.type = visualization_msgs::Marker::TRIANGLE_LIST;
+      display_surface.action = visualization_msgs::Marker::ADD;
+      tf::poseEigenToMsg(object.pose_ * Eigen::Translation3d(0, 0, z), display_surface.pose);
+      display_surface.scale.x = 1;
+      display_surface.scale.y = 1;
+      display_surface.scale.z = 1;
+      display_surface.color.r = 1;
+      display_surface.color.g = 1;
+      display_surface.color.b = 0;
+      display_surface.color.a = 1;
+      geometry_msgs::Point point;
+      point.x = x_min;
+      point.y = y_min;
+      display_surface.points.push_back(point);
+      point.x = x_max;
+      display_surface.points.push_back(point);
+      point.y = y_max;
+      display_surface.points.push_back(point);
+      display_surface.points.push_back(point);
+      point.x = x_min;
+      display_surface.points.push_back(point);
+      point.y = y_min;
+      display_surface.points.push_back(point);
+      display_objects_.markers.push_back(display_surface);
+    }
+
+    objects_.insert(std::make_pair(object.name_, object));
+
+    visualization_msgs::Marker display_object;
+    display_object.header.frame_id = "world";
+    display_object.ns = object.moveable_ ? "moveable_objects" : "non-moveable_objects";
+    display_object.id = display_objects_.markers.size();
+    display_object.type = visualization_msgs::Marker::MESH_RESOURCE;
+    std::string mesh_name = object.mesh_.substr(0, object.mesh_.find_last_of('.'));
+    display_object.mesh_resource =
+        "file://" + filename.substr(0, filename.substr(0, filename.find_last_of('/')).find_last_of('/')) + "/meshes/" +
+        mesh_name + ".dae";
+    // display_object.mesh_use_embedded_materials = true;
+    // TODO(magi.dalmau) solve color problem definition in files
+    display_object.action = visualization_msgs::Marker::ADD;
+    tf::poseEigenToMsg(object.pose_, display_object.pose);
+    display_object.scale.x = 1;
+    display_object.scale.y = 1;
+    display_object.scale.z = 1;
+    if (object.name_.find("red") != std::string::npos) {
+      display_object.color.r = 1;
+      display_object.color.g = 0;
+      display_object.color.b = 0;
+      display_object.mesh_use_embedded_materials = false;
+    } else if (object.name_.find("green") != std::string::npos) {
+      display_object.color.r = 0;
+      display_object.color.g = 1;
+      display_object.color.b = 0;
+      display_object.mesh_use_embedded_materials = false;
+    } else if (object.name_.find("blue") != std::string::npos) {
+      display_object.color.r = 0;
+      display_object.color.g = 0;
+      display_object.color.b = 1;
+      display_object.mesh_use_embedded_materials = false;
+    } else {
+      display_object.color.r = 0.5;
+      display_object.color.g = 0.5;
+      display_object.color.b = 0.5;
+      display_object.mesh_use_embedded_materials = false;
+    }
+    display_object.color.a = 1;
+    display_objects_.markers.push_back(display_object);
+
+
+
+    // moveit collision objects operations
+
+    // Set the particular values of the collision object
+    collision_object.id = object.name_;
+    collision_object.pose = display_object.pose;
+
+    // Build mesh msg if not done yet
+    const auto mesh_it = meshes_map.find(mesh_name);
+    if (mesh_it == meshes_map.end()) {
+      std::cout << "Loading mesh " << mesh_name << std::endl;
+      auto mesh = MeshMsgFromFile(display_object.mesh_resource);
+      meshes_map.insert(std::make_pair(mesh_name, mesh));
+      std::cout << "mesh lodaded" << std::endl;
+      collision_object.meshes.at(0) = mesh; // note that the mesh vector is already initialized in the common operations
+    }else{
+      collision_object.meshes.at(0) =
+          mesh_it->second; // note that the mesh vector is already initialized in the common operations
+    } 
+    
+    std::cout << "Inserted collision mesh" << std::endl;
+    // Pushback the collision object
+    vector_collision_objects.push_back(collision_object);
+  }
+
+  display_placements_.header.frame_id = "world";
+  for (const auto &object : objects_) {
+    for (const auto &surface : object.second.surfaces_) {
+      for (const auto &placement : surface.placements_) {
+        geometry_msgs::Pose pose;
+        tf::poseEigenToMsg(placement, pose);
+        display_placements_.poses.push_back(pose);
+      }
+    }
+  }
+  // Apply (syncronously) the created collision objects
+  planning_scene_interface_.applyCollisionObjects(vector_collision_objects);
+
+  display_timer_ = nh_.createTimer(ros::Duration(0.1), &MoveitTampProblem::Publish, this);
+}
+shape_msgs::Mesh MoveitTampProblem::MeshMsgFromFile(const std::string &mesh_path) {
+  shapes::ShapeMsg mesh_msg;
+  shapes::Mesh *m = shapes::createMeshFromResource(mesh_path);
+  shapes::constructMsgFromShape(m, mesh_msg);
+  delete m;
+  return boost::get<shape_msgs::Mesh>(mesh_msg);
+}
+
+void MoveitTampProblem::Publish(const ros::TimerEvent &event) {
+  pub_placements_.publish(display_placements_);
+  pub_locations_.publish(display_locations_);
+  pub_objects_.publish(display_objects_);
 }
 
 bool MoveitTampProblem::ComputeIK(const geometry_msgs::Pose &pose_goal,
@@ -160,4 +369,75 @@ void MoveitTampProblem::AddTestCollision() {
   collision_object.primitive_poses.push_back(primitive_pose);
 
   planning_scene_interface_.applyCollisionObject(collision_object);
+}
+
+// Supporting Surface Methods
+MoveitTampProblem::SupportingSurface::SupportingSurface(double x_min, double x_max, double y_min, double y_max,
+                                                        const Eigen::Affine3d &surface_pose)
+    : pose_(surface_pose) {
+  min_(0) = x_min;
+  min_(1) = y_min;
+  max_(0) = x_max;
+  max_(1) = y_max;
+};
+
+double MoveitTampProblem::SupportingSurface::area() const { return (max_ - min_).prod(); }
+bool MoveitTampProblem::SupportingSurface::on(const Eigen::Vector3d &position) const {
+  const auto v = pose_.inverse() * position;
+  const double tol = 1e-6;
+  return (v(0) >= min_(0) - tol && v(0) <= max_(0) + tol) && (v(1) >= min_(1) - tol && v(1) <= max_(1) + tol) &&
+         (v(2) >= 0. - tol && v(2) <= 0. + tol);
+}
+void MoveitTampProblem::SupportingSurface::sample() {
+  const unsigned int num_bins = std::max(1., std::ceil(sqrt(double(placements_.size()))));
+  std::vector<double> weights_x(num_bins, 0), weights_y(num_bins, 0), weights_yaw(num_bins, 0);
+  std::vector<double> intervals_x(num_bins + 1), intervals_y(num_bins + 1), intervals_yaw(num_bins + 1);
+  double x, y, yaw;
+  for (unsigned int i = 0; i <= num_bins; ++i) {
+    intervals_x.at(i) = min_(0) + (max_(0) - min_(0)) * double(i) / double(num_bins);
+    intervals_y.at(i) = min_(1) + (max_(1) - min_(1)) * double(i) / double(num_bins);
+    intervals_yaw.at(i) = -M_PI + 2. * M_PI * double(i) / double(num_bins);
+  }
+  for (const auto &placement : placements_) {
+    const auto local_pose = pose_.inverse() * placement;
+    weights_x.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(0) - min_(0)) /
+                                                                 (max_(0) - min_(0)) * double(num_bins))))++;
+    weights_y.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(1) - min_(1)) /
+                                                                 (max_(1) - min_(1)) * double(num_bins))))++;
+    weights_yaw.at(
+        std::min(num_bins - 1, (unsigned int)std::floor((atan2(local_pose.matrix()(1, 0) - local_pose.matrix()(0, 1),
+                                                               local_pose.matrix()(0, 0) + local_pose.matrix()(1, 1)) +
+                                                         M_PI) /
+                                                        (2. * M_PI) * double(num_bins))))++;
+  }
+
+  // for (auto value : weights_x) {
+  //   std::cout << ": " << std::string(value, '*') << std::endl;
+  // }
+  // std::cout << std::endl;
+  // for (auto value : weights_y) {
+  //   std::cout << ": " << std::string(value, '*') << std::endl;
+  // }
+  // std::cout << std::endl;
+  // for (auto value : weights_yaw) {
+  //   std::cout << ": " << std::string(value, '*') << std::endl;
+  // }
+  // std::cout << std::endl;
+
+  for (unsigned int i = 0; i < num_bins; ++i) {
+    weights_x.at(i) = 1. / (1e-6 + weights_x.at(i));
+    weights_y.at(i) = 1. / (1e-6 + weights_y.at(i));
+    weights_yaw.at(i) = 1. / (1e-6 + weights_yaw.at(i));
+  }
+
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  std::default_random_engine generator(seed);
+  std::piecewise_constant_distribution<double> distribution_x(intervals_x.begin(), intervals_x.end(),
+                                                              weights_x.begin());
+  std::piecewise_constant_distribution<double> distribution_y(intervals_y.begin(), intervals_y.end(),
+                                                              weights_y.begin());
+  std::piecewise_constant_distribution<double> distribution_yaw(intervals_yaw.begin(), intervals_yaw.end(),
+                                                                weights_yaw.begin());
+  placements_.push_back(pose_ * Eigen::Translation3d(distribution_x(generator), distribution_y(generator), 0) *
+                        Eigen::AngleAxisd(distribution_yaw(generator), Eigen::Vector3d::UnitZ()));
 }
