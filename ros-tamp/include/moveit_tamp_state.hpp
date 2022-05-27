@@ -3,8 +3,8 @@
 
 // ROS
 #include <geometry_msgs/Pose.h>
-#include <ros/ros.h>
 #include <moveit_msgs/CollisionObject.h>
+#include <ros/ros.h>
 
 // Generic CPP
 #include <iostream>
@@ -15,88 +15,81 @@ template <class T> inline void hash_combine(std::size_t &s, const T &v) {
 }
 
 class MoveitTampState : public State {
-  struct RobotData {
-    geometry_msgs::Pose base_pose;
-    std::vector<double> joint_positions;
-  };
+  // struct RobotData {
+  //   geometry_msgs::Pose base_pose;
+  //   std::vector<double> joint_positions;
+  // };
 
 public:
-  MoveitTampState(geometry_msgs::Pose base_pose, std::vector<double> joint_positions,
-                  std::vector<geometry_msgs::Pose> object_poses, const std::string attached_obj_id = "NONE")
-      : robot_data_{base_pose, joint_positions}, object_attached_ (attached_obj_id){
-    moveit_msgs::CollisionObject obj;
-    obj.operation = moveit_msgs::CollisionObject::MOVE;
-    obj.header.frame_id = ""; // TODO: Define/load frame reference for collision objects- maybe all with world ref
-  };
+  MoveitTampState(Eigen::Affine3d base_pose, std::vector<Eigen::Affine3d> object_poses,
+                  const std::string attached_obj_id = "NONE")
+      : robot_base_pose_(base_pose), object_attached_(attached_obj_id){
+
+                                     };
 
   virtual std::size_t GetHash() const {
     std::size_t hash = 0;
-    CombineHashRobotData(hash);
+    CombineHashBasePose(hash);
     CombineHashObjectsData(hash);
     return hash;
   }
-  void CombineHashRobotData(std::size_t &hash) const {
-    CombineHashPose(hash, robot_data_.base_pose);
-    for (const auto position : robot_data_.joint_positions) {
-      hash_combine<double>(hash, position);
-    };
-  }
+  void CombineHashBasePose(std::size_t &hash) const { CombineHashPose(hash, robot_base_pose_); }
   void CombineHashObjectsData(std::size_t &hash) const {
     for (const auto pose : object_poses_) {
       CombineHashPose(hash, pose);
     };
   };
-  void CombineHashPose(std::size_t &hash, const geometry_msgs::Pose &pose) const {
-    hash_combine<double>(hash, pose.position.x);
-    hash_combine<double>(hash, pose.position.y);
-    hash_combine<double>(hash, pose.position.z);
-    hash_combine<double>(hash, pose.orientation.x);
-    hash_combine<double>(hash, pose.orientation.y);
-    hash_combine<double>(hash, pose.orientation.z);
-    hash_combine<double>(hash, pose.orientation.w);
+  static void CombineHashPose(std::size_t &hash, const Eigen::Affine3d &pose) {
+    hash_combine<double>(hash, pose.translation()(0));
+    hash_combine<double>(hash, pose.translation()(1));
+    hash_combine<double>(hash, pose.translation()(2));
+    hash_combine<double>(hash, pose.rotation()(0));
+    hash_combine<double>(hash, pose.rotation()(1));
+    hash_combine<double>(hash, pose.rotation()(2));
+    hash_combine<double>(hash, pose.rotation()(3));
   }
 
-  virtual State *Clone() const {
-    return new MoveitTampState(robot_data_.base_pose, robot_data_.joint_positions, object_poses_);
+  virtual State *Clone() const { return new MoveitTampState(robot_base_pose_, object_poses_, object_attached_); }
+
+  bool HasObjectAttached() const { return (object_attached_.compare("NULL") != 0); };
+  Eigen::Affine3d GetRobotBasePose() const { return robot_base_pose_; }
+
+protected:
+  // METHODS
+  std::string Affine3dToString(std::ostream &os, const Eigen::Affine3d &pose) const {
+
+    os << "position: " << pose.translation().transpose() << "\torientation: " << pose.rotation().transpose();
   }
 
-  void print(std::ostream &os) const override { os << GetRobotDataString() << GetObjectsDataString(); }
+  // std::string PoseToString(const geometry_msgs::Pose &pose) const {
+  //   std::string str = "";
+  //   str += "position( " + std::to_string(pose.position.x) + ", " + std::to_string(pose.position.y) + ", " +
+  //          std::to_string(pose.position.z);
+  //   str += "\torientation( " + std::to_string(pose.orientation.x) + ", " + std::to_string(pose.orientation.y) + ", "
+  //   +
+  //          std::to_string(pose.orientation.z) + ", " + std::to_string(pose.orientation.w);
+  //   return str;
+  // }
 
-  std::string GetRobotDataString() const {
-    std::string str = "";
-    str += "\nRobot base pose: " + PoseToString(robot_data_.base_pose);
-    str += "\nRobot joint positions:\n( ";
-    for (const auto pos : robot_data_.joint_positions) {
-      str += " " + std::to_string(pos) + ",";
+  void print(std::ostream &os) const override {
+    GetRobotDataString(os);
+    GetObjectsDataString(os);
+  }
+
+  void GetRobotDataString(std::ostream &os) const { Affine3dToString(os, robot_base_pose_); }
+
+  void GetObjectsDataString(std::ostream &os) const {
+    os << "\n Object positions:";
+    for (size_t i = 0; i < object_poses_.size(); i++) {
+      os << "\nObject " << std::to_string(i) << " : ";
+      Affine3dToString(os, object_poses_.at(i));
     }
-    str.pop_back();
-    str += " )";
-    return str;
   }
 
-  std::string GetObjectsDataString() const {
-    std::string str="";
-    str+="\n Object positions:";
-    for (size_t i = 0; i < object_poses_.size(); i++)
-    {
-      str+="\nObject "+std::to_string(i)+" : "+PoseToString(object_poses_.at(i));
-    }
-    return str;
-  }
+  // OBJECTS
 
-    std::string PoseToString(const geometry_msgs::Pose &pose) const {
-      std::string str = "";
-      str += "position( " + std::to_string(pose.position.x) + ", " + std::to_string(pose.position.y) + ", " +
-             std::to_string(pose.position.z);
-      str += "\torientation( " + std::to_string(pose.orientation.x) + ", " + std::to_string(pose.orientation.y) + ", " +
-             std::to_string(pose.orientation.z) + ", " + std::to_string(pose.orientation.w);
-      return str;
-    }
-
-  protected:
-    const RobotData robot_data_;
-    const std::vector<geometry_msgs::Pose> object_poses_;
-    const std::string object_attached_;
-    // std::vector<moveit_msgs::CollisionObject> object_poses_;
-    
-  };
+  const Eigen::Affine3d robot_base_pose_;
+  const std::vector<Eigen::Affine3d> object_poses_;
+  const std::string object_attached_;
+  // std::vector<moveit_msgs::CollisionObject> object_poses_;
+};

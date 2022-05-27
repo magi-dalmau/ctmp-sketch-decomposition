@@ -47,8 +47,11 @@ public:
            (v(2) >= 0. - tol && v(2) <= 0. + tol);
   }
   void sample() {
+
     const unsigned int num_bins = std::max(1., std::ceil(sqrt(double(placements.size()))));
+
     std::vector<double> weights_x(num_bins, 0), weights_y(num_bins, 0), weights_yaw(num_bins, 0);
+    
     std::vector<double> intervals_x(num_bins + 1), intervals_y(num_bins + 1), intervals_yaw(num_bins + 1);
     double x, y, yaw;
     for (unsigned int i = 0; i <= num_bins; ++i) {
