@@ -22,10 +22,11 @@ class MoveitTampState : public State {
 
 public:
   MoveitTampState(Eigen::Affine3d base_pose, std::vector<Eigen::Affine3d> object_poses,
-                  const std::string attached_obj_id = "NONE")
-      : robot_base_pose_(base_pose), object_attached_(attached_obj_id){
+                  const std::string attached_obj_id = "NONE",
+                  const Eigen::Affine3d *selected_grasp = nullptr)
+      : robot_base_pose_(base_pose), object_attached_(attached_obj_id), selected_grasp_(selected_grasp){
 
-                                     };
+                                                                        };
 
   virtual std::size_t GetHash() const {
     std::size_t hash = 0;
@@ -49,10 +50,13 @@ public:
     hash_combine<double>(hash, pose.rotation()(3));
   }
 
-  virtual State *Clone() const { return new MoveitTampState(robot_base_pose_, object_poses_, object_attached_); }
+  virtual State *Clone() const { return new MoveitTampState(robot_base_pose_, object_poses_, object_attached_,selected_grasp_); }
 
   bool HasObjectAttached() const { return (object_attached_.compare("NULL") != 0); };
   Eigen::Affine3d GetRobotBasePose() const { return robot_base_pose_; }
+  std::vector<Eigen::Affine3d> GetObjectPoses() const { return object_poses_; }
+  std::string GetAttatchedObject() const { return object_attached_; }
+  const Eigen::Affine3d *GetGrasp() const { return selected_grasp_; }
 
 protected:
   // METHODS
@@ -91,5 +95,6 @@ protected:
   const Eigen::Affine3d robot_base_pose_;
   const std::vector<Eigen::Affine3d> object_poses_;
   const std::string object_attached_;
+  const Eigen::Affine3d * selected_grasp_; //Not considered for hash, only a helper info
   // std::vector<moveit_msgs::CollisionObject> object_poses_;
 };

@@ -25,6 +25,7 @@
 		"ms-vscode.cpptools",
 		"redhat.vscode-yaml",
 		"vscode-icons-team.vscode-icons",
-		"redhat.vscode-xml"
+		"redhat.vscode-xml",
+		"Gruntfuggly.todo-tree"
 	]
 }

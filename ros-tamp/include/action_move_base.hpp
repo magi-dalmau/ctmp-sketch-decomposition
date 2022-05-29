@@ -13,10 +13,12 @@ public:
 
   void print(std::ostream &os) const override {
 
-    os<< action_id_ <<" to position: "<< target_location_.translation().transpose()<<" and orientation: "<<target_location_.rotation().transpose();
+    os << action_id_ << " to position: " << target_location_.translation().transpose()
+       << " and orientation: " << target_location_.rotation().transpose();
   }
 
   std::string GetActionId() const { return action_id_; }
+  Eigen::Affine3d GetTargetLocation() const { return target_location_; }
 
 protected:
   std::string action_id_;

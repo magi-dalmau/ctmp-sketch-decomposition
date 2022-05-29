@@ -1,11 +1,13 @@
 // ros_tamp
-#include <move_base_action.hpp>
-#include <place_action.hpp>
+#include <action_move_base.hpp>
+#include <action_pick.hpp>
+#include <action_place.hpp>
 #include <moveit_tamp_state.hpp>
 #include <problem.hpp>
 
 // ROS
 
+#include <eigen_conversions/eigen_msg.h>
 #include <geometry_msgs/Pose.h>
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
@@ -22,22 +24,18 @@
 // Generic CPP
 #include <Eigen/Geometry>
 #include <iostream>
+#include <random>
 #include <unordered_map>
 
 class MoveitTampProblem : public Problem {
-
 public:
   MoveitTampProblem(const std::string &filename, const std::string &planning_group, ros::NodeHandle *nodehandle);
   virtual State *const Start() { return nullptr; };
   virtual bool IsGoal(State const *const state) const { return false; };
-  virtual std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) {
-    return std::vector<Action *>();
-  }
-
   virtual ~MoveitTampProblem();
 
-  virtual std::vector<Action *> GetValidActions(State const *const state,
-                                                bool lazy = false) override; // overriding voluntarily
+  // overriding GetValidActions voluntarily
+  std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) override;
 
   virtual bool IsActionValid(State const *const state, Action const *const action, bool lazy = false) {
     // Checks always:
@@ -49,12 +47,13 @@ public:
     if (!lazy) {
       // In addition, checks if non-lazy:
       // Plans the trajectory
+      //TODO: comprobacions no lazy
     }
 
     return true;
   };
 
-  virtual State *const GetSuccessor(State const *const state, Action const *const action) { return nullptr; };
+  virtual State *const GetSuccessor(State const *const state, Action const *const action);
   // virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
 
   virtual void print(std::ostream &os) const override{};
@@ -66,19 +65,19 @@ protected:
   // initializations
   void LoadWorld(const std::string &filename);
 
-  // Problem actions related
-  MoveitTampState ApplyPlaceAction(const MoveitTampState &current_state, const std::string &obj_id,
-                                   const geometry_msgs::Pose &placement,
-                                   const const geometry_msgs::Pose &stable_object_pose) {
-    MoveitTampState new_state(current_state); // TODO, aixi o es pot reaprofitar mmilor el current state
+  // // Problem actions related
+  // MoveitTampState ApplyPlaceAction(const MoveitTampState &current_state, const std::string &obj_id,
+  //                                  const geometry_msgs::Pose &placement,
+  //                                  const geometry_msgs::Pose &stable_object_pose) {
+  //   MoveitTampState new_state(current_state); current state
 
-    // Compute final object pose
-    geometry_msgs::PoseStamped final_pose;
-    final_pose.header.frame_id = common_reference_; // TODO Així o associem a una surface?
-    // Add to state new object pose and updated robot state (gripper)
-    // Detach collision object
-    DetachCollisionObject(obj_id, final_pose);
-  }
+  //   // Compute final object pose
+  //   geometry_msgs::PoseStamped final_pose;
+  //   final_pose.header.frame_id = common_reference_; 
+  //   // Add to state new object pose and updated robot state (gripper)
+  //   // Detach collision object
+  //   DetachCollisionObject(obj_id, final_pose);
+  // }
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal);
@@ -94,9 +93,12 @@ protected:
                             const std::vector<std::string> &new_reference_frames);
   void MoveCollisionObject(const std::string &obj_id, const geometry_msgs::Pose &new_pose,
                            const std::string &new_reference_frame);
+  void MoveCollisionObjects(const std::vector<std::string> &obj_ids, const std::vector<Eigen::Affine3d> &new_poses,
+                            const std::vector<std::string> &new_reference_frames);
   bool AttachCollisionObject(const std::string &obj_id, const geometry_msgs::PoseStamped &grasping_pose);
   bool DetachCollisionObject(const std::string &obj_id, const geometry_msgs::PoseStamped &placement_pose);
   bool OnWorkspace(const Eigen::Affine3d &robot_base_pose, const Eigen::Affine3d &target_pose) const;
+  bool OnSphere(const Eigen::Vector3d &origin, const double radius, const Eigen::Vector3d &target) const;
 
   moveit_msgs::CollisionObject GenerateMoveCollisionObjectMsg(const std::string &obj_id,
                                                               const geometry_msgs::Pose &new_pose,
@@ -141,6 +143,7 @@ protected:
     std::vector<SupportingSurface> surfaces_;
     std::vector<Eigen::Affine3d> grasps_;
     std::vector<Eigen::Affine3d> placements_;
+    std::vector<Eigen::Affine3d> stable_object_poses_; // TODO initialize SOP
   };
 
   // OBJECTS
@@ -153,11 +156,15 @@ protected:
   geometry_msgs::PoseArray display_locations_;
   visualization_msgs::MarkerArray display_objects_;
   std::map<std::string, Object> objects_;
+  std::vector<std::string> objects_ids_;
+  std::map<std::string, std::size_t> object_indexs;
   std::vector<Eigen::Affine3d> base_locations_;
-  std::unordered_map<std::size_t, std::vector<std::size_t>> locations_connections_; // TODO: Margin to optimize it?
+  std::unordered_map<std::size_t, std::vector<std::size_t>> locations_connections_; 
+  // TODO: Check all the base locations are connected if not, more sampling needed
 
   double allowed_distance_between_connected_locations_;
   Eigen::Affine3d robot_origin_;
+  Eigen::Affine3d gripper_home_wrt_robot_base; //TODO: Set gripper home pose
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
   ros::ServiceClient ik_service_client_;
@@ -167,4 +174,5 @@ protected:
   std::string common_reference_;
   moveit_msgs::GetPositionIK srv_;
   std::default_random_engine generator_;
+  std::string ik_service_name_;
 };
