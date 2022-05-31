@@ -9,7 +9,7 @@ public:
     for (auto action : actions_)
       delete action;
   }
-  virtual State *const Start() = 0;
+  virtual State *const Start() const = 0;
   virtual bool IsGoal(State const *const state) const = 0;
   virtual std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) {
     std::vector<Action *> valid_actions;
@@ -21,7 +21,7 @@ public:
     return valid_actions;
   };
 
-  virtual bool IsActionValid(State const *const state, Action const *const action, bool lazy = false) { return true; };
+  virtual bool IsActionValid(State const *const state, Action  *const action, bool lazy = false) { return true; };
   virtual State *const GetSuccessor(State const *const state, Action const *const action) = 0;
   virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
   virtual std::size_t GetNovelty(State const *const state) const {return 0;};

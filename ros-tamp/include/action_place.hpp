@@ -1,6 +1,8 @@
 #pragma once
 #include <Eigen/Geometry>
 #include <action.hpp>
+#include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
 #include <moveit_msgs/GetPositionIK.h>
 
 class PlaceAction : public Action {
@@ -23,13 +25,23 @@ public:
     os << action_id_ << " object: " << target_object_id_;
   }
 
+  void SetToObjectPlan(const moveit::planning_interface::MoveGroupInterface::Plan &to_object_plan) {
+    to_object_plan_ = to_object_plan;
+  }
+  void SetToHomePlan(const moveit::planning_interface::MoveGroupInterface::Plan &to_home_plan) {
+    to_home_plan_ = to_home_plan;
+  }
+
   std::string GetActionId() const { return action_id_; }
   std::string GetTargetObjectId() const { return target_object_id_; }
   const Eigen::Affine3d GetTargetObjectPose() const { return target_object_pose_; }
+  moveit_msgs::RobotState::_joint_state_type GetJointGoal() const { return joint_goal_; }
 
 protected:
   std::string action_id_;
   std::string target_object_id_;
   Eigen::Affine3d target_object_pose_;//This includes world to placement + placement to object (i.e. stable object pose)
   moveit_msgs::RobotState::_joint_state_type joint_goal_;
+  moveit::planning_interface::MoveGroupInterface::Plan to_object_plan_;
+  moveit::planning_interface::MoveGroupInterface::Plan to_home_plan_;
 };

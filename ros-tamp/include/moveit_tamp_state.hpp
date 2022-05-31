@@ -22,7 +22,7 @@ class MoveitTampState : public State {
 
 public:
   MoveitTampState(Eigen::Affine3d base_pose, std::vector<Eigen::Affine3d> object_poses,
-                  const std::string attached_obj_id = "NONE",
+                  const std::string attached_obj_id = "",
                   const Eigen::Affine3d *selected_grasp = nullptr)
       : robot_base_pose_(base_pose), object_attached_(attached_obj_id), selected_grasp_(selected_grasp){
 
@@ -52,7 +52,7 @@ public:
 
   virtual State *Clone() const { return new MoveitTampState(robot_base_pose_, object_poses_, object_attached_,selected_grasp_); }
 
-  bool HasObjectAttached() const { return (object_attached_.compare("NULL") != 0); };
+  bool HasObjectAttached() const { return !object_attached_.empty(); };
   Eigen::Affine3d GetRobotBasePose() const { return robot_base_pose_; }
   std::vector<Eigen::Affine3d> GetObjectPoses() const { return object_poses_; }
   std::string GetAttatchedObject() const { return object_attached_; }
@@ -60,7 +60,7 @@ public:
 
 protected:
   // METHODS
-  std::string Affine3dToString(std::ostream &os, const Eigen::Affine3d &pose) const {
+ void Affine3dToString(std::ostream &os, const Eigen::Affine3d &pose) const {
 
     os << "position: " << pose.translation().transpose() << "\torientation: " << pose.rotation().transpose();
   }

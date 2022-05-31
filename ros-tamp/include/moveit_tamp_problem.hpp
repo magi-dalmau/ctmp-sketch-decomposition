@@ -30,28 +30,14 @@
 class MoveitTampProblem : public Problem {
 public:
   MoveitTampProblem(const std::string &filename, const std::string &planning_group, ros::NodeHandle *nodehandle);
-  virtual State *const Start() { return nullptr; };
-  virtual bool IsGoal(State const *const state) const { return false; };
+  virtual State *const Start() const;
+  virtual bool IsGoal(State const *const state) const;
   virtual ~MoveitTampProblem();
 
   // overriding GetValidActions voluntarily
   std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) override;
 
-  virtual bool IsActionValid(State const *const state, Action const *const action, bool lazy = false) {
-    // Checks always:
-    // Free gripper/grasped object and a grasp (if needed)
-    // In workspace (i.e. within a sphere)
-    // IK solution exists (collision free) for pick & parking pose or place pose
-    // Pick/place/Home configuration collision-free
-
-    if (!lazy) {
-      // In addition, checks if non-lazy:
-      // Plans the trajectory
-      //TODO: comprobacions no lazy
-    }
-
-    return true;
-  };
+  virtual bool IsActionValid(State const *const state, Action *const action, bool lazy = false);
 
   virtual State *const GetSuccessor(State const *const state, Action const *const action);
   // virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
@@ -73,7 +59,7 @@ protected:
 
   //   // Compute final object pose
   //   geometry_msgs::PoseStamped final_pose;
-  //   final_pose.header.frame_id = common_reference_; 
+  //   final_pose.header.frame_id = common_reference_;
   //   // Add to state new object pose and updated robot state (gripper)
   //   // Detach collision object
   //   DetachCollisionObject(obj_id, final_pose);
@@ -84,7 +70,8 @@ protected:
   bool ComputeIK(const Eigen::Affine3d &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal);
 
   bool PlanToJoinTarget(const moveit_msgs::RobotState::_joint_state_type &joint_goal,
-                        moveit::planning_interface::MoveGroupInterface::Plan &plan);
+                        moveit::planning_interface::MoveGroupInterface::Plan &plan,
+                        const moveit_msgs::RobotState &robot_start_state);
   void InitIKRequest(moveit_msgs::GetPositionIK &srv); // use a explicit srv reference
   void InitIKRequest();                                // use directly the class member srv_
   bool ExecutePlan(moveit::planning_interface::MoveGroupInterface::Plan &plan);
@@ -98,11 +85,11 @@ protected:
   bool AttachCollisionObject(const std::string &obj_id, const geometry_msgs::PoseStamped &grasping_pose);
   bool DetachCollisionObject(const std::string &obj_id, const geometry_msgs::PoseStamped &placement_pose);
   bool OnWorkspace(const Eigen::Affine3d &robot_base_pose, const Eigen::Affine3d &target_pose) const;
-  bool OnSphere(const Eigen::Vector3d &origin, const double radius, const Eigen::Vector3d &target) const;
+  bool OnCircle(const Eigen::Vector3d &origin, const double radius, const Eigen::Vector3d &target) const;
 
   moveit_msgs::CollisionObject GenerateMoveCollisionObjectMsg(const std::string &obj_id,
                                                               const geometry_msgs::Pose &new_pose,
-                                                              const std::string &new_reference_frame);
+                                                              const std::string &new_reference_frame="");
   shape_msgs::Mesh MeshMsgFromFile(const std::string &mesh_path);
   void PopulateLocationsConnections();
   bool LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination);
@@ -143,7 +130,7 @@ protected:
     std::vector<SupportingSurface> surfaces_;
     std::vector<Eigen::Affine3d> grasps_;
     std::vector<Eigen::Affine3d> placements_;
-    std::vector<Eigen::Affine3d> stable_object_poses_; // TODO initialize SOP
+    std::vector<Eigen::Affine3d> stable_object_poses_;
   };
 
   // OBJECTS
@@ -156,15 +143,19 @@ protected:
   geometry_msgs::PoseArray display_locations_;
   visualization_msgs::MarkerArray display_objects_;
   std::map<std::string, Object> objects_;
-  std::vector<std::string> objects_ids_;
-  std::map<std::string, std::size_t> object_indexs;
+  std::vector<std::string> object_names_;
+  std::map<std::string, std::size_t> object_indices;
   std::vector<Eigen::Affine3d> base_locations_;
-  std::unordered_map<std::size_t, std::vector<std::size_t>> locations_connections_; 
+  std::unordered_map<std::size_t, std::vector<std::size_t>> locations_connections_;
   // TODO: Check all the base locations are connected if not, more sampling needed
 
   double allowed_distance_between_connected_locations_;
   Eigen::Affine3d robot_origin_;
-  Eigen::Affine3d gripper_home_wrt_robot_base; //TODO: Set gripper home pose
+  std::string robot_grasping_link_;
+  moveit_msgs::RobotState::_joint_state_type robot_home_joint_config_; // TODO: Set robot home joint config
+  Eigen::Affine3d gripper_home_wrt_robot_base;                         // TODO: Set gripper home pose
+  Eigen::Vector3d robot_workspace_center_translation_;                 // TODO: Set robot workspace origin
+  double robot_workspace_radio_;                                       // TODO: set robot workspace radio
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
   ros::ServiceClient ik_service_client_;

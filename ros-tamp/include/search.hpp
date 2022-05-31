@@ -122,7 +122,7 @@ protected:
     plan.total_cost = current_node->GetAccumulatedCost();
 
     while (current_node != root_node_) {
-      auto action = current_node->GetAction();
+      auto action = current_node->GetAction()->Clone();
       auto parent = current_node->GetParent();
 
       assert(action && parent);
@@ -133,7 +133,7 @@ protected:
         } else {
           std::cout << *action << " from " << *parent->GetState() << " already confirmed" << std::endl;
         }
-        plan.actions.push_back(action->Clone());
+        plan.actions.push_back(action);
         plan.costs.push_back(current_node->GetActionCost());
 
         current_node = parent;
