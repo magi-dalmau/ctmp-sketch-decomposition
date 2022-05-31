@@ -44,10 +44,12 @@ public:
     hash_combine<double>(hash, pose.translation()(0));
     hash_combine<double>(hash, pose.translation()(1));
     hash_combine<double>(hash, pose.translation()(2));
-    hash_combine<double>(hash, pose.rotation()(0));
-    hash_combine<double>(hash, pose.rotation()(1));
-    hash_combine<double>(hash, pose.rotation()(2));
-    hash_combine<double>(hash, pose.rotation()(3));
+    Eigen::Quaterniond q(pose.rotation());
+    //TODO solucionar doble mapeado quaternion
+    hash_combine<double>(hash, q.w());
+    hash_combine<double>(hash, q.x());
+    hash_combine<double>(hash, q.y());
+    hash_combine<double>(hash, q.z());
   }
 
   virtual State *Clone() const { return new MoveitTampState(robot_base_pose_, object_poses_, object_attached_,selected_grasp_); }

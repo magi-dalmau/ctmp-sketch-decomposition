@@ -91,8 +91,8 @@ protected:
                                                               const geometry_msgs::Pose &new_pose,
                                                               const std::string &new_reference_frame="");
   shape_msgs::Mesh MeshMsgFromFile(const std::string &mesh_path);
-  void PopulateLocationsConnections();
-  bool LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination);
+  void PopulateLocationConnections();
+  bool LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination) const;
 
   // visualization
   void Publish(const ros::TimerEvent &event);
@@ -146,7 +146,7 @@ protected:
   std::vector<std::string> object_names_;
   std::map<std::string, std::size_t> object_indices;
   std::vector<Eigen::Affine3d> base_locations_;
-  std::unordered_map<std::size_t, std::vector<std::size_t>> locations_connections_;
+  std::unordered_map<std::size_t, std::vector<std::size_t>> location_connections_;
   // TODO: Check all the base locations are connected if not, more sampling needed
 
   double allowed_distance_between_connected_locations_;
@@ -156,14 +156,15 @@ protected:
   Eigen::Affine3d gripper_home_wrt_robot_base;                         // TODO: Set gripper home pose
   Eigen::Vector3d robot_workspace_center_translation_;                 // TODO: Set robot workspace origin
   double robot_workspace_radio_;                                       // TODO: set robot workspace radio
+  std::string robot_root_tf_;
+  std::string common_reference_;
+  std::string ik_service_name_;
+
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
   ros::ServiceClient ik_service_client_;
   std::vector<std::string> group_joint_names_;
-  std::size_t num_group_joints_;
-  std::string robot_root_tf_;
-  std::string common_reference_;
+  std::size_t num_group_joints_; 
   moveit_msgs::GetPositionIK srv_;
   std::default_random_engine generator_;
-  std::string ik_service_name_;
 };

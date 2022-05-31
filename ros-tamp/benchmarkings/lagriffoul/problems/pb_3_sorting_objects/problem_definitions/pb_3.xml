@@ -598,7 +598,7 @@
       <robot>
          <name>pr2</name>
          <urdf>models/pr2.urdf</urdf> <!-- or some other format you may use -->
-         <basepose>1.000 0.000 0.000 0.000 0.000 1.000 0.000 0.000 0.000 0.000 1.000 -0.670</basepose>
+         <basepose>1.000 0.000 0.000 0.000 0.000 1.000 0.000 0.000 0.000 0.000 1.000 0</basepose>
          <movebase>true</movebase> <!-- the base can move -->
          <torso>0.1</torso>
          <left_arm>0.5 0.0 0.0 -0.16 0.0 -0.11 0.0</left_arm>
