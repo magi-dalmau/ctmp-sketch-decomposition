@@ -18,6 +18,7 @@
 #include <moveit_msgs/GetPositionIK.h>
 
 #include <geometry_msgs/PoseArray.h>
+#include <moveit_msgs/DisplayRobotState.h>
 #include <ros/ros.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -66,8 +67,10 @@ protected:
   // }
 
   // Manipulator movements related
-  bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal);
-  bool ComputeIK(const Eigen::Affine3d &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal);
+  bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
+                 const moveit_msgs::AttachedCollisionObject &attached_object);
+  bool ComputeIK(const Eigen::Affine3d &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
+                 const moveit_msgs::AttachedCollisionObject &attached_object);
 
   bool PlanToJoinTarget(const moveit_msgs::RobotState::_joint_state_type &joint_goal,
                         moveit::planning_interface::MoveGroupInterface::Plan &plan,
@@ -129,7 +132,6 @@ protected:
     bool moveable_;
     std::vector<SupportingSurface> surfaces_;
     std::vector<Eigen::Affine3d> grasps_;
-    std::vector<Eigen::Affine3d> placements_;
     std::vector<Eigen::Affine3d> stable_object_poses_;
   };
 
@@ -138,10 +140,12 @@ protected:
   ros::Publisher pub_placements_;
   ros::Publisher pub_locations_;
   ros::Publisher pub_objects_;
+  ros::Publisher pub_robot_state_;
   ros::Timer display_timer_;
   geometry_msgs::PoseArray display_placements_;
   geometry_msgs::PoseArray display_locations_;
   visualization_msgs::MarkerArray display_objects_;
+  moveit_msgs::DisplayRobotState display_robot_state_;
   std::map<std::string, Object> objects_;
   std::vector<std::string> object_names_;
   std::map<std::string, std::size_t> object_indices;
@@ -152,13 +156,19 @@ protected:
   double allowed_distance_between_connected_locations_;
   Eigen::Affine3d robot_origin_;
   std::string robot_grasping_link_;
-  moveit_msgs::RobotState::_joint_state_type robot_home_joint_config_; // TODO: Set robot home joint config
-  Eigen::Affine3d gripper_home_wrt_robot_base;                         // TODO: Set gripper home pose
-  Eigen::Vector3d robot_workspace_center_translation_;                 // TODO: Set robot workspace origin
-  double robot_workspace_radio_;                                       // TODO: set robot workspace radio
+  moveit_msgs::RobotState::_joint_state_type robot_home_joint_config_; 
+  
+  Eigen::Affine3d gripper_home_wrt_robot_base;                      
+  
+  Eigen::Vector3d robot_workspace_center_translation_;                 
+  
+  double robot_workspace_radius_;
+  double gripper_semiamplitude_;
+  
   std::string robot_root_tf_;
   std::string common_reference_;
   std::string ik_service_name_;
+ 
 
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
@@ -167,4 +177,5 @@ protected:
   std::size_t num_group_joints_; 
   moveit_msgs::GetPositionIK srv_;
   std::default_random_engine generator_;
+  
 };

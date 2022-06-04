@@ -31,19 +31,19 @@ public:
   void AddParent(Node *const parent, Action const *const action, double action_cost) {
     if (!is_root_) {
       const double old_accumulated_cost = GetAccumulatedCost();
-      if (GetParent()) {
-        std::cout << "Parent of " << *state_ << " with acc cost " << old_accumulated_cost << " is "
-                  << *GetParent()->GetState() << std::endl;
-      } else {
-        std::cout << *state_ << " with acc cost " << old_accumulated_cost << " has no parent" << std::endl;
-      }
+      // if (GetParent()) {
+      //   std::cout << "Parent of " << *state_ << " with acc cost " << old_accumulated_cost << " is "
+      //             << *GetParent()->GetState() << std::endl;
+      // } else {
+      //   std::cout << *state_ << " with acc cost " << old_accumulated_cost << " has no parent" << std::endl;
+      // }
 
       Edge edge = {parent, action, action_cost, action_cost + parent->GetAccumulatedCost(), false};
       edges_.push(edge);
 
       const double new_accumulated_cost = GetAccumulatedCost();
-      std::cout << "Parent of " << *state_ << " with acc cost " << new_accumulated_cost << " is "
-                << *GetParent()->GetState() << std::endl;
+      // std::cout << "Parent of " << *state_ << " with acc cost " << new_accumulated_cost << " is "
+      //           << *GetParent()->GetState() << std::endl;
       if (old_accumulated_cost != new_accumulated_cost) {
         for (auto &successor : successors_) {
           successor->UpdateEdgeCost(this, new_accumulated_cost);

@@ -21,6 +21,7 @@ public:
 
     root_node_ = new Node(problem_->Start());
     AddToOpen(root_node_);
+    num_open_++;
     auto node = ExtractNode();
 
     if (problem_->IsGoal(node->GetState())) {
@@ -29,7 +30,13 @@ public:
     }
 
     while (node) {
+      if (num_processed_ % 100 == 0) {
+        std::cout << "Open: " << num_open_ << " Closed: " << num_closed_ << " Processed: " << num_processed_
+                  << std::endl;
+      }
+
       auto end = Process(node, plan, lazy);
+      num_processed_++;
 
       if (end)
         return true;
@@ -42,7 +49,7 @@ public:
 
 protected:
   virtual Node *const Process(Node *const parent, Plan &plan, bool lazy) {
-    std::cout << "Starting processing " << *parent->GetState() << std::endl;
+    // std::cout << "Starting processing " << *parent->GetState() << std::endl;
     for (const auto action : problem_->GetValidActions(parent->GetState(), lazy)) {
       double action_cost = problem_->GetCost(parent->GetState(), action);
       auto successor = new Node(problem_->GetSuccessor(parent->GetState(), action), parent, action, action_cost);
@@ -54,7 +61,7 @@ protected:
 
       auto duplicate_open = FindNodeInOpen(successor);
       if (duplicate_open) {
-        std::cout << *successor->GetState() << " already in open" << std::endl;
+        // std::cout << *successor->GetState() << " already in open" << std::endl;
         duplicate_open->AddParent(parent, action->Clone(), action_cost);
         ManageDuplicateInOpen(duplicate_open);
         parent->AddSuccessor(duplicate_open);
@@ -64,7 +71,7 @@ protected:
 
       auto duplicate_close = FindNodeInClose(successor);
       if (duplicate_close) {
-        std::cout << *successor->GetState() << " already in close" << std::endl;
+        // std::cout << *successor->GetState() << " already in close" << std::endl;
         duplicate_close->AddParent(parent, action->Clone(), action_cost);
         ManageDuplicateInOpen(duplicate_close);
         parent->AddSuccessor(duplicate_close);
@@ -79,24 +86,32 @@ protected:
         continue;
       }
 
-      
-      parent->AddSuccessor(successor);    
+      parent->AddSuccessor(successor);
       if (problem_->IsGoal(successor->GetState())) {
         successor->SetConnectedGoal(successor);
         AddToClose(successor);
+        num_closed_++;
 
         if (GetPlan(plan, successor)) {
           AddToClose(parent);
+          num_closed_++;
           return successor;
         }
-      }else{
+      } else {
         AddToOpen(successor);
+        num_open_++;
       }
     }
     AddToClose(parent);
+    num_closed_++;
+
     return NULL;
   };
-  virtual void Clear(){};
+  virtual void Clear() {
+    num_open_ = 0;
+    num_closed_ = 0;
+    num_processed_ = 0;
+  };
 
   virtual void AddToOpen(Node *const node) = 0;
   virtual Node *const FindNodeInOpen(Node *const node) = 0;
@@ -115,6 +130,9 @@ protected:
 
   virtual bool GetPlan(Plan &plan, Node *const goal) {
     std::cout << "Starting plan computation from goal " << *goal->GetState() << std::endl;
+    std::string x;
+    std::cin >> x;
+    
     plan.clear();
 
     Node *current_node = goal;
@@ -158,5 +176,5 @@ protected:
   // vars
   Problem *const problem_;
   Node *root_node_;
-  // std::size_t closed_nodes;
+  std::size_t num_open_, num_closed_, num_processed_;
 };

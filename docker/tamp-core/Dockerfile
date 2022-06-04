@@ -13,7 +13,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 ros-noetic-kdl-parser 
 
 #Download Tiago related packages
-WORKDIR ros_ws/src
+WORKDIR /ros_ws/src
 RUN git clone https://github.com/pal-robotics/tiago_robot.git
 RUN git clone https://github.com/pal-robotics/tiago_description_calibration.git
 RUN git clone https://github.com/pal-robotics/pmb2_robot.git

@@ -11,10 +11,16 @@
     <node name="test_tiago_problem" pkg="ros_tamp" type="ros_tamp_test_tiago_problem" output="screen">
         <param name="lazy" type="bool" value="true" />
         <param name="planning_group" type="string" value="arm_torso" />
+        <param name="locations_amount" type="int" value="10" />
+        <param name="num_placements" type="int" value="6" />
+        <param name="ik_timeout" type="double" value="0.1" />
+        <param name="avoid_collisions_in_IK" type="bool" value="true" />
+
         <rosparam command="load" file="$(find tiago_moveit_config)/config/kinematics_kdl.yaml" />
     </node>
 
     <node name="world_base_footprint" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 1.0 world base_footprint 100" />
+    <node name="arm_tool_link_to_grasping_point" pkg="tf" type="static_transform_publisher" args="0.20 0 0 0 0 0 1.0 arm_tool_link pre_grasping_point 100" />
     <!-- <node name="base_footprint_obj" pkg="tf" type="static_transform_publisher" args="0.5 0.5 1 0 0 0 1.0  base_footprint obj 100" /> -->
 
 </launch>

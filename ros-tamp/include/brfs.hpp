@@ -10,6 +10,7 @@ public:
 
 protected:
   virtual void Clear() {
+    Search::Clear();
     open_queue_ = std::queue<Node *>();
     //TODO(magi.dalmau) solve
     //open_queue_ = std::queue<Node *const>();
@@ -32,11 +33,13 @@ protected:
 
   virtual Node *const ExtractNode() {
     // Select Node, delete it from Open
+    if (open_queue_.empty()) return nullptr;
+
     auto node = open_queue_.front();
     open_queue_.pop();
     open_hash_table_.erase(std::hash<Node>()(*node));
 
-    std::cout << "Extracted " << *node->GetState() << std::endl;
+    //std::cout << "Extracted " << *node->GetState() << std::endl;
 
     return node;
   };

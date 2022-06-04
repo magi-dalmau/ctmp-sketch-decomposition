@@ -19,11 +19,26 @@ int main(int argc, char **argv) {
 
   std::cout << "The problem will be initialized" << std::endl;
   const std::string filename =
-      "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_3_sorting_objects/problem_definitions/pb_3.xml";
+      "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_3_sorting_objects/problem_definitions/dummy_pb_3.xml";
+
+  
   auto problem = new MoveitTampProblem(filename, planning_group, &nh);
+
+  std::cout << "My problem is:\n" << *problem << std::endl;
+
+  auto brfs = new BrFS(problem);
+
+  Plan plan;
+  if (brfs->Solve(plan, lazy)) {
+    std::cout << "Found solution" << std::endl;
+    std::cout << plan << std::endl;
+  } else {
+    std::cout << "Solution not found" << std::endl;
+  }
+
   // problem->checkIk();
   // problem->isValidConfig();
-  moveit::planning_interface::MoveGroupInterface::Plan plan;
+  // moveit::planning_interface::MoveGroupInterface::Plan plan;
   // problem->planMovement();
   // problem->addTestCollision();
   // if (problem->planMovement(plan)) {
