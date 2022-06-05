@@ -28,7 +28,7 @@ public:
   }
 
   // FUNCTIONS
-  void AddParent(Node *const parent, Action const *const action, double action_cost) {
+  bool AddParent(Node *const parent, Action const *const action, double action_cost) {
     if (!is_root_) {
       const double old_accumulated_cost = GetAccumulatedCost();
       // if (GetParent()) {
@@ -48,8 +48,10 @@ public:
         for (auto &successor : successors_) {
           successor->UpdateEdgeCost(this, new_accumulated_cost);
         }
+        return true;
       }
     }
+    return false;
   };
 
   void RemoveParent() {

@@ -27,8 +27,35 @@ protected:
   }
 
   virtual void AddToOpen(Node *const node) {
+    // double dist, min_dist = std::numeric_limits<double>::infinity();
+    // State * min_state = nullptr;
+    // for (const auto &other : open_hash_table_) {
+    //   dist = other.second->GetState()->distance(node->GetState());
+    //   if (dist < min_dist){
+    //     min_dist = dist;
+    //     delete min_state;
+    //     min_state = other.second->GetState()->Clone();
+    //   }
+    // }
+    // if (min_dist < 1e-6) { 
+    //   std::cout << "Min dist: " << min_dist << " between hashes " << node->GetState()->GetHash() // << " and " << min_state->GetHash() << std::endl;
+    //   std::cout << *node->GetState() << std::endl;
+    //   std::cout << *min_state << std::endl;
+    //   std::string x;
+    //   std::cin >> x;
+    // }
+    // if (!std::isfinite(min_dist)) {
+    //   std::cout << "Min dist is not finite: " << min_dist << std::endl;
+    //   std::cout << open_hash_table_.size() << std::endl;
+    //   std::string x;
+    //   std::cin >> x;
+    // }
+    // delete min_state;
+
     open_queue_.push(node);
-    open_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node));
+    auto inserted = open_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node)).second;
+    assert(inserted);
+    assert(num_open_ == open_hash_table_.size() && num_open_ == open_queue_.size());
   }
 
   virtual Node *const ExtractNode() {
@@ -37,7 +64,9 @@ protected:
 
     auto node = open_queue_.front();
     open_queue_.pop();
-    open_hash_table_.erase(std::hash<Node>()(*node));
+    auto erased = open_hash_table_.erase(std::hash<Node>()(*node));
+    assert(erased);
+    assert(num_open_ == open_hash_table_.size() && num_open_ == open_queue_.size());
 
     //std::cout << "Extracted " << *node->GetState() << std::endl;
 
@@ -53,7 +82,9 @@ protected:
   };
 
   virtual void AddToClose(Node *const node) {
-    close_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node));
+    auto inserted = close_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node)).second;
+    assert(inserted);
+    assert(num_closed_ ==  close_hash_table_.size());
   }
 
   virtual Node *const FindNodeInClose(Node *const node) {

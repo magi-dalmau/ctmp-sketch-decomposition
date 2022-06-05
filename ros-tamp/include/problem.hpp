@@ -31,6 +31,7 @@ public:
     obj.print(os);
     return os;
   }
+  virtual void PrintStatistics() const=0;
 
 protected:
   std::vector<Action *> actions_;

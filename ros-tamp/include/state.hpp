@@ -7,6 +7,7 @@ public:
   virtual std::size_t GetHash() const = 0;
   virtual State *Clone() const = 0;
   virtual void print(std::ostream &os) const = 0;
+  virtual double distance(const State *const state) const {return 0;}
   // Overloading << operator
   friend std::ostream &operator<<(std::ostream &os, const State &obj) {
     obj.print(os);

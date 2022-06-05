@@ -41,19 +41,26 @@ public:
     };
   };
   static void CombineHashPose(std::size_t &hash, const Eigen::Affine3d &pose) {
-    hash_combine<double>(hash, pose.translation()(0));
-    hash_combine<double>(hash, pose.translation()(1));
-    hash_combine<double>(hash, pose.translation()(2));
-    Eigen::Quaterniond q(pose.rotation());
-    // TODO solucionar doble mapeado quaternion
-    hash_combine<double>(hash, q.w());
-    hash_combine<double>(hash, q.x());
-    hash_combine<double>(hash, q.y());
-    hash_combine<double>(hash, q.z());
+    const auto matrix = 1000.0*pose.matrix();
+    for (unsigned int i = 0; i < 3; ++i) {
+      for (unsigned int j = i; j < 4; ++j) {
+        hash_combine<double>(hash, trunc(matrix(i,j)));
+      }
+    }
   }
 
   virtual State *Clone() const {
     return new MoveitTampState(robot_base_pose_, object_poses_, object_attached_, selected_grasp_);
+  }
+
+  virtual double distance(const State *const state) const override {
+    auto casted_state = dynamic_cast<const MoveitTampState * const>(state);
+    double dist = (robot_base_pose_.matrix()-casted_state->GetRobotBasePose().matrix()).squaredNorm();
+    for (std::size_t i = 0; i < object_poses_.size(); ++i) {
+      dist += (object_poses_.at(i).matrix() - casted_state->GetObjectPoses().at(i).matrix()).squaredNorm();
+    }
+
+    return dist; 
   }
 
   bool HasObjectAttached() const { return !object_attached_.empty(); };
@@ -65,8 +72,8 @@ public:
 protected:
   // METHODS
   void Affine3dToString(std::ostream &os, const Eigen::Affine3d &pose) const {
-
-    os << "position: " << pose.translation().transpose() << "\torientation: " << pose.rotation().transpose();
+    os << "position: " << pose.translation().transpose()
+       << "\torientation: " << Eigen::Quaterniond(pose.rotation()).coeffs().transpose() << std::endl;
   }
 
   // std::string PoseToString(const geometry_msgs::Pose &pose) const {
@@ -81,7 +88,7 @@ protected:
 
   void print(std::ostream &os) const override {
     GetRobotDataString(os);
-    // GetObjectsDataString(os);
+    GetObjectsDataString(os);
   }
 
   void GetRobotDataString(std::ostream &os) const { Affine3dToString(os, robot_base_pose_); }

@@ -44,6 +44,7 @@ public:
   // virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
 
   virtual void print(std::ostream &os) const override{};
+  virtual void PrintStatistics() const override;
 
   virtual std::size_t GetNovelty(State const *const state) const override { return 0; };
 
@@ -92,7 +93,7 @@ protected:
 
   moveit_msgs::CollisionObject GenerateMoveCollisionObjectMsg(const std::string &obj_id,
                                                               const geometry_msgs::Pose &new_pose,
-                                                              const std::string &new_reference_frame="");
+                                                              const std::string &new_reference_frame = "");
   shape_msgs::Mesh MeshMsgFromFile(const std::string &mesh_path);
   void PopulateLocationConnections();
   bool LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination) const;
@@ -156,26 +157,27 @@ protected:
   double allowed_distance_between_connected_locations_;
   Eigen::Affine3d robot_origin_;
   std::string robot_grasping_link_;
-  moveit_msgs::RobotState::_joint_state_type robot_home_joint_config_; 
-  
-  Eigen::Affine3d gripper_home_wrt_robot_base;                      
-  
-  Eigen::Vector3d robot_workspace_center_translation_;                 
-  
+  moveit_msgs::RobotState::_joint_state_type robot_home_joint_config_;
+
+  Eigen::Affine3d gripper_home_wrt_robot_base;
+
+  Eigen::Vector3d robot_workspace_center_translation_;
+
   double robot_workspace_radius_;
   double gripper_semiamplitude_;
-  
+
   std::string robot_root_tf_;
   std::string common_reference_;
   std::string ik_service_name_;
- 
 
   moveit::planning_interface::MoveGroupInterface move_group_interface_;
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
   ros::ServiceClient ik_service_client_;
   std::vector<std::string> group_joint_names_;
-  std::size_t num_group_joints_; 
+  std::size_t num_group_joints_;
   moveit_msgs::GetPositionIK srv_;
   std::default_random_engine generator_;
-  
+  // Statistics
+  std::size_t num_move_base_, num_pick_, num_place_, num_total_ik_calls_, num_successful_ik_calls_,
+      num_total_motion_plans_, num_successful_motion_plans_;
 };

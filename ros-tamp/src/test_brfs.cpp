@@ -3,7 +3,6 @@
 #include <random>
 #include <ros/ros.h>
 
-
 template <class T> inline void hash_combine(std::size_t &s, const T &v) {
   std::hash<T> h;
   s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
@@ -22,9 +21,7 @@ public:
 
   virtual State *Clone() const { return new MyState(i_, j_); }
 
-  void print(std::ostream &os) const override {
-    os << "(" << i_ << ", " << j_ << ")";
-  }
+  void print(std::ostream &os) const override { os << "(" << i_ << ", " << j_ << ")"; }
 
   std::size_t i_, j_;
 };
@@ -36,8 +33,7 @@ public:
   MyAction(Type type) : Action(), type_(type){};
   virtual Action *Clone() const { return new MyAction(type_); };
   void print(std::ostream &os) const override {
-    switch (type_)
-    {
+    switch (type_) {
     case UP:
       os << "UP";
       break;
@@ -69,7 +65,9 @@ public:
     actions_.push_back(new MyAction(MyAction::RIGHT));
     actions_.push_back(new MyAction(MyAction::LEFT));
   };
-
+  virtual void PrintStatistics() const override {
+    std::cout << "No statistics defined for this problem class" << std::endl;
+  }
   virtual State *const Start() const { return new MyState(start_coords_.first, start_coords_.second); };
 
   virtual bool IsGoal(State const *const state) const {
@@ -88,7 +86,7 @@ public:
 
     std::cout << *state << " not goal" << std::endl;
     return false;
-    };
+  };
 
   virtual bool IsActionValid(State const *const state, Action const *const action, bool lazy = false) {
     auto successor = GetSuccessor(state, action);
@@ -184,10 +182,10 @@ public:
 
   std::size_t vectorizeIndex(const std::size_t i, const std::size_t j) const { return i * num_cols_ + j; };
   std::string linearStringToGrid(const std::string &problem_string) const {
-    std::string grid_string="";
-    for (std::size_t i=0; i<num_rows_;i++){
-      grid_string+=problem_string.substr(vectorizeIndex(i,0),num_cols_);
-      grid_string+="\n";
+    std::string grid_string = "";
+    for (std::size_t i = 0; i < num_rows_; i++) {
+      grid_string += problem_string.substr(vectorizeIndex(i, 0), num_cols_);
+      grid_string += "\n";
     }
     return grid_string;
   }
@@ -206,10 +204,9 @@ int main(int argc, char **argv) {
   // Initialize ROS
   ros::init(argc, argv, "test_bfrs_node");
   ROS_INFO("Starting Brfs test");
-    // Declare Node Handle
+  // Declare Node Handle
   ros::NodeHandle nh("~");
-  bool lazy=nh.param("lazy",true);
-
+  bool lazy = nh.param("lazy", true);
 
   auto problem = new MyProblem(5, 5, {{1, 2}, {2, 2}}, {0, 2}, {{2, 1}}, 0.0);
   std::cout << "My problem is:\n" << *problem << std::endl;
