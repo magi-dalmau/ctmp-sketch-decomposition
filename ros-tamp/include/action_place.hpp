@@ -31,6 +31,8 @@ public:
   void SetToHomePlan(const moveit::planning_interface::MoveGroupInterface::Plan &to_home_plan) {
     to_home_plan_ = to_home_plan;
   }
+  moveit::planning_interface::MoveGroupInterface::Plan GetToObjectPlan() const { return to_object_plan_; }
+  moveit::planning_interface::MoveGroupInterface::Plan GetToHomePlan() const { return to_home_plan_; }
 
   std::string GetActionId() const { return action_id_; }
   std::string GetTargetObjectId() const { return target_object_id_; }
@@ -40,7 +42,8 @@ public:
 protected:
   std::string action_id_;
   std::string target_object_id_;
-  Eigen::Affine3d target_object_pose_;//This includes world to placement + placement to object (i.e. stable object pose)
+  Eigen::Affine3d
+      target_object_pose_; // This includes world to placement + placement to object (i.e. stable object pose)
   moveit_msgs::RobotState::_joint_state_type joint_goal_;
   moveit::planning_interface::MoveGroupInterface::Plan to_object_plan_;
   moveit::planning_interface::MoveGroupInterface::Plan to_home_plan_;

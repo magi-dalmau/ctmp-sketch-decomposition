@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   visualization_msgs
   eigen_conversions
+  tf_conversions
   moveit_ros_planning_interface
   rviz_visual_tools
   moveit_visual_tools

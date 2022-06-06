@@ -56,14 +56,23 @@ public:
 
   void RemoveParent() {
     if (!edges_.empty()) {
+      std::cout << __LINE__ << std::endl;
       const double old_accumulated_cost = GetAccumulatedCost();
+      std::cout << __LINE__ << std::endl;
       edges_.pop();
+      std::cout << __LINE__ << std::endl;
       const double new_accumulated_cost = GetAccumulatedCost();
+      std::cout << __LINE__ << std::endl;
       if (old_accumulated_cost != new_accumulated_cost) {
+        std::cout << __LINE__ << std::endl;
         for (auto &successor : successors_) {
+          std::cout << __LINE__ << std::endl;
           successor->UpdateEdgeCost(this, new_accumulated_cost);
+          std::cout << __LINE__ << std::endl;
         }
+        std::cout << __LINE__ << std::endl;
       }
+      std::cout << __LINE__ << std::endl;
     }
     // TODO(magi.dalmau) gestionar excepcio no hi havia parents
   };

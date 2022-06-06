@@ -59,7 +59,7 @@ protected:
     std::cout << "Open: " << num_open_ << " Dup-Open: " << num_duplicates_open_ << " Closed: " << num_closed_
               << " Dup-Closed: " << num_duplicates_closed_ << " Pruned: " << num_pruned_
               << " Processed: " << num_processed_ << " Rewired: " << num_rewired_ << " Get Plan: " << num_plans_
-              << std::endl;
+              << " Already confirmed: " << num_already_confirmed_ << std::endl;
     // std::string x;
     problem_->PrintStatistics();
   }
@@ -142,6 +142,7 @@ protected:
     num_processed_ = 0;
     num_rewired_ = 0;
     num_plans_ = 0;
+    num_already_confirmed_ = 0;
   };
 
   virtual void AddToOpen(Node *const node) = 0;
@@ -162,8 +163,8 @@ protected:
   virtual bool GetPlan(Plan &plan, Node *const goal) {
     num_plans_++;
     std::cout << "Starting plan computation from goal " << *goal->GetState() << std::endl;
-    std::string x;
-    std::cin >> x;
+    // std::string x;
+    // std::cin >> x;
 
     plan.clear();
 
@@ -181,6 +182,7 @@ protected:
         if (!current_node->IsParentConfirmed()) {
           current_node->ConfirmParent();
         } else {
+          num_already_confirmed_++;
           std::cout << *action << " from " << *parent->GetState() << " already confirmed" << std::endl;
         }
         plan.actions.push_back(action);
@@ -211,6 +213,7 @@ protected:
   // vars
   Problem *const problem_;
   Node *root_node_;
+  // statistics
   std::size_t num_open_, num_duplicates_open_, num_closed_, num_duplicates_closed_, num_pruned_, num_processed_,
-      num_rewired_, num_plans_;
+      num_rewired_, num_plans_, num_already_confirmed_;
 };

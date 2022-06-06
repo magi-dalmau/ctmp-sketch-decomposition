@@ -33,6 +33,8 @@ public:
   void SetToHomePlan(const moveit::planning_interface::MoveGroupInterface::Plan &to_home_plan) {
     to_home_plan_ = to_home_plan;
   }
+  moveit::planning_interface::MoveGroupInterface::Plan GetToObjectPlan() const { return to_object_plan_; }
+  moveit::planning_interface::MoveGroupInterface::Plan GetToHomePlan() const { return to_home_plan_; }
 
   std::string GetActionId() const { return action_id_; }
 

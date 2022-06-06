@@ -6,20 +6,19 @@
 #include <problem.hpp>
 
 // ROS
-
 #include <eigen_conversions/eigen_msg.h>
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseArray.h>
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
-#include <moveit_msgs/GetPositionIK.h>
-
-#include <geometry_msgs/PoseArray.h>
 #include <moveit_msgs/DisplayRobotState.h>
+#include <moveit_msgs/GetPositionIK.h>
 #include <ros/ros.h>
+#include <tf/transform_broadcaster.h>
 #include <visualization_msgs/MarkerArray.h>
 
 // Generic CPP
@@ -48,6 +47,8 @@ public:
 
   virtual std::size_t GetNovelty(State const *const state) const override { return 0; };
 
+  virtual bool ExecutePlan(const Plan &plan) override;
+
 protected:
   // METHODS
   // initializations
@@ -73,17 +74,19 @@ protected:
   bool ComputeIK(const Eigen::Affine3d &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
                  const moveit_msgs::AttachedCollisionObject &attached_object);
 
-  bool PlanToJoinTarget(const moveit_msgs::RobotState::_joint_state_type &joint_goal,
-                        moveit::planning_interface::MoveGroupInterface::Plan &plan,
-                        const moveit_msgs::RobotState &robot_start_state);
+  bool PlanToJointTarget(const moveit_msgs::RobotState::_joint_state_type &joint_goal,
+                         moveit::planning_interface::MoveGroupInterface::Plan &plan,
+                         const moveit_msgs::RobotState &robot_start_state);
   void InitIKRequest(moveit_msgs::GetPositionIK &srv); // use a explicit srv reference
   void InitIKRequest();                                // use directly the class member srv_
-  bool ExecutePlan(moveit::planning_interface::MoveGroupInterface::Plan &plan);
+  bool ExecutePlan(const moveit::planning_interface::MoveGroupInterface::Plan &plan);
   // Collision object related
-  void MoveCollisionObjects(const std::vector<std::string> &obj_ids, const std::vector<geometry_msgs::Pose> &new_poses,
-                            const std::vector<std::string> &new_reference_frames);
   void MoveCollisionObject(const std::string &obj_id, const geometry_msgs::Pose &new_pose,
                            const std::string &new_reference_frame);
+  void MoveCollisionObject(const std::string &obj_id, const Eigen::Affine3d &new_pose,
+                           const std::string &new_reference_frame);
+  void MoveCollisionObjects(const std::vector<std::string> &obj_ids, const std::vector<geometry_msgs::Pose> &new_poses,
+                            const std::vector<std::string> &new_reference_frames);
   void MoveCollisionObjects(const std::vector<std::string> &obj_ids, const std::vector<Eigen::Affine3d> &new_poses,
                             const std::vector<std::string> &new_reference_frames);
   bool AttachCollisionObject(const std::string &obj_id, const geometry_msgs::PoseStamped &grasping_pose);
@@ -93,11 +96,13 @@ protected:
 
   moveit_msgs::CollisionObject GenerateMoveCollisionObjectMsg(const std::string &obj_id,
                                                               const geometry_msgs::Pose &new_pose,
-                                                              const std::string &new_reference_frame = "");
+                                                              const std::string &new_reference_frame);
   shape_msgs::Mesh MeshMsgFromFile(const std::string &mesh_path);
   void PopulateLocationConnections();
   bool LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination) const;
-
+  bool PlanAndExecuteCloseGripper(moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface);
+  bool PlanAndExecuteOpenGripper(moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface);
+  bool PlanAndExecuteMoveGripperToNamedTarget(moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface,const std::string &named_target);
   // visualization
   void Publish(const ros::TimerEvent &event);
 
@@ -142,11 +147,13 @@ protected:
   ros::Publisher pub_locations_;
   ros::Publisher pub_objects_;
   ros::Publisher pub_robot_state_;
+  tf::TransformBroadcaster tf_broadcaster_;
   ros::Timer display_timer_;
   geometry_msgs::PoseArray display_placements_;
   geometry_msgs::PoseArray display_locations_;
   visualization_msgs::MarkerArray display_objects_;
   moveit_msgs::DisplayRobotState display_robot_state_;
+  Eigen::Affine3d robot_pose_;
   std::map<std::string, Object> objects_;
   std::vector<std::string> object_names_;
   std::map<std::string, std::size_t> object_indices;

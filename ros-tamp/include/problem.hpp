@@ -2,6 +2,7 @@
 #include <action.hpp>
 #include <state.hpp>
 #include <vector>
+#include <plan.hpp>
 
 class Problem {
 public:
@@ -32,6 +33,7 @@ public:
     return os;
   }
   virtual void PrintStatistics() const=0;
+  virtual bool ExecutePlan(const Plan &plan) {return false;}
 
 protected:
   std::vector<Action *> actions_;

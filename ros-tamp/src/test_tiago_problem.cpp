@@ -21,7 +21,6 @@ int main(int argc, char **argv) {
   const std::string filename =
       "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_3_sorting_objects/problem_definitions/dummy_pb_3.xml";
 
-  
   auto problem = new MoveitTampProblem(filename, planning_group, &nh);
 
   std::cout << "My problem is:\n" << *problem << std::endl;
@@ -32,6 +31,9 @@ int main(int argc, char **argv) {
   if (brfs->Solve(plan, lazy)) {
     std::cout << "Found solution" << std::endl;
     std::cout << plan << std::endl;
+    while (ros::ok()) {
+      problem->ExecutePlan(plan);
+    }
   } else {
     std::cout << "Solution not found" << std::endl;
   }
@@ -62,6 +64,7 @@ int main(int argc, char **argv) {
   //   std::cout << "Solution not found" << std::endl;
   // }
   ros::waitForShutdown();
+  delete problem;
 
   return 0;
 };

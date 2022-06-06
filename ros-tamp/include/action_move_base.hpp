@@ -19,8 +19,11 @@ public:
 
   std::string GetActionId() const { return action_id_; }
   Eigen::Affine3d GetTargetLocation() const { return target_location_; }
+  void AddViaPoint(const Eigen::Affine3d &point) { via_points_.push_back(point); }
+  std::vector<Eigen::Affine3d> GetViaPoints() const { return via_points_; }
 
 protected:
   std::string action_id_;
   Eigen::Affine3d target_location_;
+  std::vector<Eigen::Affine3d> via_points_;
 };
