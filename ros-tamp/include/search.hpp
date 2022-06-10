@@ -58,7 +58,8 @@ protected:
   virtual void printStatistics() const {
     std::cout << "Open: " << num_open_ << " Dup-Open: " << num_duplicates_open_ << " Closed: " << num_closed_
               << " Dup-Closed: " << num_duplicates_closed_ << " Pruned: " << num_pruned_
-              << " Processed: " << num_processed_ << " Rewired: " << num_rewired_ << " Get Plan: " << num_plans_
+              << " Dup-Pruned: " << num_duplicates_pruned_ << " Processed: " << num_processed_
+              << " Rewired: " << num_rewired_ << " Get Plan: " << num_plans_
               << " Already confirmed: " << num_already_confirmed_ << std::endl;
     // std::string x;
     problem_->PrintStatistics();
@@ -71,12 +72,6 @@ protected:
       auto successor = new Node(problem_->GetSuccessor(parent->GetState(), action), parent, action, action_cost);
 
       assert(successor->GetState()->GetHash() != parent->GetState()->GetHash());
-
-      if (Prune(successor)) {
-        num_pruned_++;
-        delete successor;
-        continue;
-      }
 
       auto duplicate_open = FindNodeInOpen(successor);
       if (duplicate_open) {
@@ -113,6 +108,17 @@ protected:
         continue;
       }
 
+      auto duplicate_pruned = FindNodeInPruned(successor);
+      if (duplicate_pruned) {
+        num_duplicates_pruned_++;
+        // std::cout << *successor->GetState() << " already in open" << std::endl;
+        duplicate_pruned->AddParent(parent, action->Clone(), action_cost);
+        ManageDuplicateInPruned(duplicate_pruned);
+        parent->AddSuccessor(duplicate_pruned);
+        delete successor;
+        continue;
+      }
+
       parent->AddSuccessor(successor);
       if (problem_->IsGoal(successor->GetState())) {
         successor->SetConnectedGoal(successor);
@@ -124,6 +130,9 @@ protected:
           AddToClose(parent);
           return successor;
         }
+      } else if (Prune(successor)) {
+        num_pruned_++;
+        ManagePruned(successor);
       } else {
         num_open_++;
         AddToOpen(successor);
@@ -139,6 +148,7 @@ protected:
     num_closed_ = 0;
     num_duplicates_closed_ = 0;
     num_pruned_ = 0;
+    num_duplicates_pruned_ = 0;
     num_processed_ = 0;
     num_rewired_ = 0;
     num_plans_ = 0;
@@ -155,10 +165,15 @@ protected:
   virtual void AddToClose(Node *const node) = 0;
   virtual Node *const FindNodeInClose(Node *const node) = 0;
   virtual void ManageDuplicateInClose(Node *const node){
-      // In case you need for instance reorder open list after a duplicate has appeared
+      // In case you need for instance reorder close list after a duplicate has appeared
   };
-
-  virtual bool Prune(Node *const node) const { return false; }
+  virtual Node *const FindNodeInPruned(Node *const node) { return nullptr; };
+  virtual void ManageDuplicateInPruned(Node *const node){
+      // In case you need for instance reorder pruned list after a duplicate has appeared
+  };
+  virtual bool Prune(Node *const node) { return false; }
+  virtual void ManagePruned(Node *const node) { delete node; }
+  virtual void ManageOrphan(Node *const node){};
 
   virtual bool GetPlan(Plan &plan, Node *const goal) {
     num_plans_++;
@@ -196,6 +211,9 @@ protected:
 
         std::cout << "Removing parent" << std::endl;
         current_node->RemoveParent();
+        if (!isfinite(current_node->GetAccumulatedCost())) {
+          ManageOrphan(current_node);
+        }
         if (isfinite(goal->GetAccumulatedCost())) {
           num_rewired_++;
           // If goal still has finite accumulated cost, it is still connected to root_node
@@ -215,5 +233,5 @@ protected:
   Node *root_node_;
   // statistics
   std::size_t num_open_, num_duplicates_open_, num_closed_, num_duplicates_closed_, num_pruned_, num_processed_,
-      num_rewired_, num_plans_, num_already_confirmed_;
+      num_rewired_, num_plans_, num_already_confirmed_, num_duplicates_pruned_;
 };

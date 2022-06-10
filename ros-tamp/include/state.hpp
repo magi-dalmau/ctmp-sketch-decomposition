@@ -5,6 +5,7 @@ class State {
 public:
   //virtual bool operator==(const State &other_state) const = 0;
   virtual std::size_t GetHash() const = 0;
+  virtual std::vector<std::size_t> GetFeatures() const {return std::vector<std::size_t>();};
   virtual State *Clone() const = 0;
   virtual void print(std::ostream &os) const = 0;
   virtual double distance(const State *const state) const {return 0;}

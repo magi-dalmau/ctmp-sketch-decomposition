@@ -16,6 +16,40 @@
 #include <tinyxml.h>
 #include <vector>
 
+template <class T> inline void hash_combine(std::size_t &s, const T &v) {
+  std::hash<T> h;
+  s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+};
+
+void CombineHashPose(std::size_t &hash, const Eigen::Affine3d &pose) {
+  const auto matrix = 1000.0 * pose.matrix();
+  for (unsigned int i = 0; i < 3; ++i) {
+    for (unsigned int j = i; j < 4; ++j) {
+      hash_combine<double>(hash, trunc(matrix(i, j)));
+    }
+  }
+}
+
+// void CombineHashTranslation(std::size_t &hash, const Eigen::Vector3d &translation) {
+//   for (size_t i = 0; i < 3; i++) {
+//     hash_combine<double>(hash, trunc(translation(i)));
+//   }
+// }
+
+// void CombineHashRotation(std::size_t &hash, const Eigen::Matrix3d &matrix) {
+//   for (unsigned int i = 0; i < 3; ++i) {
+//     for (unsigned int j = i; j < 3; ++j) {
+//       hash_combine<double>(hash, trunc(matrix(i, j)));
+//     }
+//   }
+// }
+
+template <class T> inline void CombineHashVector(std::size_t &s, const std::vector<T> &vector) {
+  for (const auto v : vector) {
+    hash_combine<T>(s, v);
+  }
+};
+
 // MAIN CLASS
 // Constructor related methods
 MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::string &planning_group,
@@ -490,7 +524,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   display_location_connections.color.a = 1;
   for (std::size_t i = 0; i < base_locations_.size(); ++i) {
     std::size_t hash = 0;
-    MoveitTampState::CombineHashPose(hash, base_locations_.at(i));
+    CombineHashPose(hash, base_locations_.at(i));
     auto connections = location_connections_.find(hash);
     if (connections != location_connections_.end()) {
       geometry_msgs::Point start;
@@ -531,7 +565,7 @@ void MoveitTampProblem::PopulateLocationConnections() {
       }
     }
     std::size_t hash = 0;
-    MoveitTampState::CombineHashPose(hash, base_locations_.at(i));
+    CombineHashPose(hash, base_locations_.at(i));
     location_connections_.insert(std::make_pair(hash, connections));
   }
 }
@@ -644,7 +678,12 @@ State *const MoveitTampProblem::Start() const {
     // << std::endl;
     object_poses.push_back(objects_.at(object_name).pose_);
   }
-  return new MoveitTampState(robot_origin_, object_poses);
+
+  std::size_t state_hash;
+  std::vector<std::size_t> features;
+  ComputeHashes(robot_origin_, object_poses, "", state_hash, features);
+
+  return new MoveitTampState(robot_origin_, object_poses, state_hash, features);
 }
 
 bool MoveitTampProblem::ComputeIK(
@@ -856,11 +895,35 @@ bool MoveitTampProblem::ExecutePlan(const Plan &plan) {
 bool MoveitTampProblem::ExecutePlan(const moveit::planning_interface::MoveGroupInterface::Plan &plan) {
   std::cout << "Plan will be executed now" << std::endl;
   std::cout << "Plan has " << plan.trajectory_.joint_trajectory.points.size() << " points" << std::endl;
-  std::cout << "Plan lasts " << plan.trajectory_.joint_trajectory.points.back().time_from_start.toSec() << " seconds" << std::endl;
+  std::cout << "Plan lasts " << plan.trajectory_.joint_trajectory.points.back().time_from_start.toSec() << " seconds"
+            << std::endl;
   auto result = move_group_interface_.execute(plan);
   std::cout << "Plan returned " << result << std::endl;
   return (result == result.SUCCESS);
 }
+
+// bool MoveitTampProblem::IsGoal(State const *const state) const {
+//   // Goal = for all X, stick_blueX on table3 and stick_greenX on table4
+//   // TODO: Goal hardcode only for this PoC
+//   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
+//   const auto &table3 = objects_.at("table3");
+//   const auto table_3_pose_inv = table3.pose_.inverse();
+//   const auto &table4 = objects_.at("table4");
+//   const auto table_4_pose_inv = table4.pose_.inverse();
+
+//   for (std::size_t i = 0; i < objects_.size(); ++i) {
+//     if (object_names_.at(i).find("stick_blue") != std::string::npos &&
+//         !table3.surfaces_.front().on(table_3_pose_inv * casted_state->GetObjectPoses().at(i).translation())) {
+//       return false;
+//     }
+//     if (object_names_.at(i).find("stick_green") != std::string::npos &&
+//         !table4.surfaces_.front().on(table_4_pose_inv * casted_state->GetObjectPoses().at(i).translation())) {
+//       return false;
+//     }
+//   }
+
+//   return true;
+// }
 
 bool MoveitTampProblem::IsGoal(State const *const state) const {
   // Goal = for all X, stick_blueX on table3 and stick_greenX on table4
@@ -873,16 +936,16 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
 
   for (std::size_t i = 0; i < objects_.size(); ++i) {
     if (object_names_.at(i).find("stick_blue") != std::string::npos &&
-        !table3.surfaces_.front().on(table_3_pose_inv * casted_state->GetObjectPoses().at(i).translation())) {
-      return false;
+        table3.surfaces_.front().on(table_3_pose_inv * casted_state->GetObjectPoses().at(i).translation())) {
+      return true;
     }
     if (object_names_.at(i).find("stick_green") != std::string::npos &&
-        !table4.surfaces_.front().on(table_4_pose_inv * casted_state->GetObjectPoses().at(i).translation())) {
-      return false;
+        table4.surfaces_.front().on(table_4_pose_inv * casted_state->GetObjectPoses().at(i).translation())) {
+      return true;
     }
   }
 
-  return true;
+  return false;
 }
 
 void MoveitTampProblem::MoveCollisionObject(const std::string &obj_id, const geometry_msgs::Pose &new_pose,
@@ -1101,7 +1164,7 @@ Cases:
   }
   // MOVE BASE ACTIONS
   std::size_t hash = 0;
-  casted_state->CombineHashBasePose(hash);
+  CombineHashPose(hash, casted_state->GetRobotBasePose());
   auto res = location_connections_.find(hash);
   if (res == location_connections_.end()) {
     ROS_ERROR("Unknown current robot base pose");
@@ -1213,37 +1276,91 @@ State *const MoveitTampProblem::GetSuccessor(State const *const state, Action co
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
   // TODO: Maybe a more elegant way to organize kinds of actions, maybe each action should have an Apply method but then
   // is state dependent...
+  std::size_t state_hash;
+  std::vector<std::size_t> features;
   if (auto move_base_action = dynamic_cast<const MoveBaseAction *>(action)) {
     if (casted_state->HasObjectAttached()) {
       std::vector<Eigen::Affine3d> new_object_poses = casted_state->GetObjectPoses();
       new_object_poses.at(object_indices.at(casted_state->GetAttatchedObject())) =
           move_base_action->GetTargetLocation() * casted_state->GetRobotBasePose().inverse() *
           new_object_poses.at(object_indices.at(casted_state->GetAttatchedObject()));
-      return new MoveitTampState(move_base_action->GetTargetLocation(), new_object_poses,
+
+      ComputeHashes(move_base_action->GetTargetLocation(), new_object_poses, casted_state->GetAttatchedObject(),
+                    state_hash, features);
+
+      return new MoveitTampState(move_base_action->GetTargetLocation(), new_object_poses, state_hash, features,
                                  casted_state->GetAttatchedObject(), casted_state->GetGrasp());
 
     } else {
-      return new MoveitTampState(move_base_action->GetTargetLocation(), casted_state->GetObjectPoses(),
-                                 casted_state->GetAttatchedObject());
+      ComputeHashes(move_base_action->GetTargetLocation(), casted_state->GetObjectPoses(), "", state_hash, features);
+
+      return new MoveitTampState(move_base_action->GetTargetLocation(), casted_state->GetObjectPoses(), state_hash,
+                                 features);
     }
 
   } else if (auto pick_action = dynamic_cast<const PickAction *>(action)) {
-
     std::vector<Eigen::Affine3d> new_object_poses = casted_state->GetObjectPoses();
     new_object_poses.at(object_indices.at(pick_action->GetTargetObjectId())) =
         casted_state->GetRobotBasePose() * gripper_home_wrt_robot_base * pick_action->GetGrasp()->inverse();
-    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses, pick_action->GetTargetObjectId(),
-                               pick_action->GetGrasp());
+    ComputeHashes(casted_state->GetRobotBasePose(), new_object_poses, pick_action->GetTargetObjectId(), state_hash,
+                  features);
+
+    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses, state_hash, features,
+                               pick_action->GetTargetObjectId(), pick_action->GetGrasp());
 
   } else if (auto place_action = dynamic_cast<const PlaceAction *>(action)) {
     std::vector<Eigen::Affine3d> new_object_poses = casted_state->GetObjectPoses();
     new_object_poses.at(object_indices.at(place_action->GetTargetObjectId())) = place_action->GetTargetObjectPose();
-    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses);
+    ComputeHashes(casted_state->GetRobotBasePose(), new_object_poses, "", state_hash, features);
+
+    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses, state_hash, features);
   } else {
     ROS_ERROR("UNRECOGNIZED ACTION CLASS");
     return nullptr;
   }
 }
+
+void MoveitTampProblem::ComputeHashes(const Eigen::Affine3d &base_pose,
+                                      const std::vector<Eigen::Affine3d> &object_poses,
+                                      const std::string &attached_object, std::size_t &state_hash,
+                                      std::vector<std::size_t> &features_hashes) const {
+  // Base related hashs
+  state_hash = 0;
+  CombineHashPose(state_hash, base_pose);
+  std::size_t hash = 0;
+  hash_combine<std::string>(hash, std::string("robot"));
+  CombineHashPose(hash, base_pose);
+  features_hashes.push_back(hash);
+
+  // Object related hash
+  std::size_t attached_object_index = object_poses.size();
+  if (!attached_object.empty()) {
+    auto it = object_indices.find(attached_object);
+    if (it != object_indices.end()) {
+      attached_object_index = it->second;
+    }
+  }
+  for (std::size_t i = 0; i < object_poses.size(); i++) {
+    const auto &object = objects_.at(object_names_.at(i));
+    if (!object.moveable_)
+      continue;
+
+    CombineHashPose(state_hash, object_poses.at(i));
+
+    hash = 0;
+    hash_combine<std::string>(hash, object_names_.at(i));
+    if (i != attached_object_index) {
+      CombineHashPose(hash, Eigen::Affine3d(Eigen::Translation3d(object_poses.at(i).translation())*Eigen::Quaterniond::Identity()));
+    }else{
+      CombineHashPose(
+          hash,
+          base_pose); // To represent object grasped it is set as the base pose (it does not add unique info to multiply
+                      // for the tf between the base and the gripper and the selected grasped is expressly excluded in order to have more abstraction)
+    }
+    features_hashes.push_back(hash);
+  };
+}
+
 void MoveitTampProblem::PrintStatistics() const {
   std::cout << "Move: " << num_move_base_ << " Pick: " << num_pick_ << " Place: " << num_place_
             << "\nTotal IK calls: " << num_total_ik_calls_ << " Successful IK calls: " << num_successful_ik_calls_

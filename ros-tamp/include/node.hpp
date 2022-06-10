@@ -128,6 +128,8 @@ public:
     }
   };
 
+  std::vector<Node *> GetSuccessors() { return successors_; }
+
   Action const *const GetAction() const {
     if (edges_.size() > 0) {
       return edges_.top().action;

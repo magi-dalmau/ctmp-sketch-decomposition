@@ -9,7 +9,7 @@ public:
     target_location_ = target_location;
   };
 
-  virtual Action *Clone() const { return new MoveBaseAction(target_location_); };
+  virtual Action *Clone() const override { return new MoveBaseAction(target_location_); };
 
   void print(std::ostream &os) const override {
 

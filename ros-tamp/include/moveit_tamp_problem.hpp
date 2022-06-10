@@ -30,22 +30,19 @@
 class MoveitTampProblem : public Problem {
 public:
   MoveitTampProblem(const std::string &filename, const std::string &planning_group, ros::NodeHandle *nodehandle);
-  virtual State *const Start() const;
-  virtual bool IsGoal(State const *const state) const;
-  virtual ~MoveitTampProblem();
+  virtual State *const Start() const override;
+  virtual bool IsGoal(State const *const state) const override;
+  virtual ~MoveitTampProblem() override;
 
   // overriding GetValidActions voluntarily
   std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) override;
 
-  virtual bool IsActionValid(State const *const state, Action *const action, bool lazy = false);
+  virtual bool IsActionValid(State const *const state, Action *const action, bool lazy = false) override;
 
-  virtual State *const GetSuccessor(State const *const state, Action const *const action);
-  // virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
+  virtual State *const GetSuccessor(State const *const state, Action const *const action) override;
 
   virtual void print(std::ostream &os) const override{};
   virtual void PrintStatistics() const override;
-
-  virtual std::size_t GetNovelty(State const *const state) const override { return 0; };
 
   virtual bool ExecutePlan(const Plan &plan) override;
 
@@ -102,7 +99,13 @@ protected:
   bool LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination) const;
   bool PlanAndExecuteCloseGripper(moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface);
   bool PlanAndExecuteOpenGripper(moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface);
-  bool PlanAndExecuteMoveGripperToNamedTarget(moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface,const std::string &named_target);
+  bool
+  PlanAndExecuteMoveGripperToNamedTarget(moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface,
+                                         const std::string &named_target);
+
+  void ComputeHashes(const Eigen::Affine3d &base_pose, const std::vector<Eigen::Affine3d> &object_poses,
+                     const std::string &attached_object, std::size_t &state_hash,
+                     std::vector<std::size_t> &features_hashes) const;
   // visualization
   void Publish(const ros::TimerEvent &event);
 

@@ -16,7 +16,9 @@ public:
     target_object_pose_ = target_object_pose;
   };
 
-  virtual Action *Clone() const { return new PlaceAction(target_object_id_, joint_goal_, target_object_pose_); };
+  virtual Action *Clone() const override {
+    return new PlaceAction(target_object_id_, joint_goal_, target_object_pose_);
+  };
 
   void print(std::ostream &os) const override {
 

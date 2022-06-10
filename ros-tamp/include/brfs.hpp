@@ -9,24 +9,24 @@ public:
   BrFS(Problem *const problem) : Search(problem){};
 
 protected:
-  virtual void Clear() {
+  virtual void Clear() override {
     Search::Clear();
     open_queue_ = std::queue<Node *>();
-    //TODO(magi.dalmau) solve
-    //open_queue_ = std::queue<Node *const>();
-    
+    // TODO(magi.dalmau) solve
+    // open_queue_ = std::queue<Node *const>();
+
     for (auto open : open_hash_table_) {
       delete open.second;
     }
     open_hash_table_.clear();
-    
+
     for (auto close : close_hash_table_) {
       delete close.second;
     }
     close_hash_table_.clear();
   }
 
-  virtual void AddToOpen(Node *const node) {
+  virtual void AddToOpen(Node *const node) override {
     // double dist, min_dist = std::numeric_limits<double>::infinity();
     // State * min_state = nullptr;
     // for (const auto &other : open_hash_table_) {
@@ -37,12 +37,10 @@ protected:
     //     min_state = other.second->GetState()->Clone();
     //   }
     // }
-    // if (min_dist < 1e-6) { 
-    //   std::cout << "Min dist: " << min_dist << " between hashes " << node->GetState()->GetHash() // << " and " << min_state->GetHash() << std::endl;
-    //   std::cout << *node->GetState() << std::endl;
-    //   std::cout << *min_state << std::endl;
-    //   std::string x;
-    //   std::cin >> x;
+    // if (min_dist < 1e-6) {
+    //   std::cout << "Min dist: " << min_dist << " between hashes " << node->GetState()->GetHash() // << " and " <<
+    //   min_state->GetHash() << std::endl; std::cout << *node->GetState() << std::endl; std::cout << *min_state <<
+    //   std::endl; std::string x; std::cin >> x;
     // }
     // if (!std::isfinite(min_dist)) {
     //   std::cout << "Min dist is not finite: " << min_dist << std::endl;
@@ -58,9 +56,10 @@ protected:
     assert(num_open_ == open_hash_table_.size() && num_open_ == open_queue_.size());
   }
 
-  virtual Node *const ExtractNode() {
+  virtual Node *const ExtractNode() override {
     // Select Node, delete it from Open
-    if (open_queue_.empty()) return nullptr;
+    if (open_queue_.empty())
+      return nullptr;
 
     auto node = open_queue_.front();
     open_queue_.pop();
@@ -68,12 +67,12 @@ protected:
     assert(erased);
     assert(num_open_ == open_hash_table_.size() && num_open_ == open_queue_.size());
 
-    //std::cout << "Extracted " << *node->GetState() << std::endl;
+    // std::cout << "Extracted " << *node->GetState() << std::endl;
 
     return node;
   };
 
-  virtual Node *const FindNodeInOpen(Node *const node) {
+  virtual Node *const FindNodeInOpen(Node *const node) override {
     auto res = open_hash_table_.find(node->GetState()->GetHash());
     if (res == open_hash_table_.end()) {
       return nullptr;
@@ -81,13 +80,13 @@ protected:
     return res->second;
   };
 
-  virtual void AddToClose(Node *const node) {
+  virtual void AddToClose(Node *const node) override {
     auto inserted = close_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node)).second;
     assert(inserted);
-    assert(num_closed_ ==  close_hash_table_.size());
+    assert(num_closed_ == close_hash_table_.size());
   }
 
-  virtual Node *const FindNodeInClose(Node *const node) {
+  virtual Node *const FindNodeInClose(Node *const node) override {
     auto res = close_hash_table_.find(node->GetState()->GetHash());
     if (res == close_hash_table_.end()) {
       return nullptr;
@@ -96,7 +95,7 @@ protected:
   };
 
   // To manage nodes to Open, 2 containers are used
-  //std::queue<Node *const> open_queue_; // deque as underlying container (default option)
+  // std::queue<Node *const> open_queue_; // deque as underlying container (default option)
   std::queue<Node *> open_queue_;
   // TODO(magi.dalmau) Solve problem que of const pointers
   std::unordered_map<std::size_t, Node *const> open_hash_table_;

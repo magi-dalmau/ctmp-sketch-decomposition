@@ -6,17 +6,19 @@
         <arg name="end_effector" value="pal-gripper" />
 
     </include> -->
-   
+
     <!-- start node -->
     <node name="test_tiago_problem" pkg="ros_tamp" type="ros_tamp_test_tiago_problem" output="screen">
         <param name="lazy" type="bool" value="true" />
+        <param name="problem_name" type="string" value="pb_3" />
         <param name="planning_group" type="string" value="arm_torso" />
         <param name="locations_amount" type="int" value="18" />
-        <param name="num_placements" type="int" value="4" />
+        <param name="num_placements" type="int" value="50" />
         <param name="ik_timeout" type="double" value="0.15" />
         <param name="avoid_collisions_in_IK" type="bool" value="true" />
         <param name="rviz_visualization" type="bool" value="true" />
-        <param name="num_sops" type="int" value="2" />
+        <param name="num_sops" type="int" value="4" />
+        <param name="k_max" type="int" value="2" />
 
         <rosparam command="load" file="$(find tiago_moveit_config)/config/kinematics_kdl.yaml" />
     </node>
