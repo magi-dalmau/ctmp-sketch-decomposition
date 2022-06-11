@@ -10,6 +10,7 @@
 
 // Generic CPP
 #include <iostream>
+#include <unordered_set>
 
 class MoveitTampState : public State {
   // struct RobotData {
@@ -50,6 +51,26 @@ public:
 
     return dist;
   }
+
+  void SetMisplacedObjects(const std::unordered_set<std::size_t> &misplaced_objects) {
+    misplaced_objects_ = misplaced_objects;
+  }
+  std::unordered_set<std::size_t> GetMisplacedObjects() const { return misplaced_objects_; }
+  std::size_t GetNumOfMisplacedObjects() const { return misplaced_objects_.size(); }
+  void SetMinObstructingObjects(const std::size_t min_obstructing_objects) {
+    min_obstructing_objects_ = min_obstructing_objects;
+  };
+
+  void
+  SetSumMinObjectsObstructingMisplacedObjects(const std::size_t sum_min_objects_obstructing_each_misplaced_object) {
+    sum_min_objects_obstructing_each_misplaced_object_ = sum_min_objects_obstructing_each_misplaced_object;
+  };
+
+  std::size_t GetMinObstructingObjects() const { return min_obstructing_objects_; };
+
+  std::size_t GetSumMinObjectsObstructingMisplacedObjects() const {
+    return sum_min_objects_obstructing_each_misplaced_object_;
+  };
 
   bool HasObjectAttached() const { return !object_attached_.empty(); };
   Eigen::Affine3d GetRobotBasePose() const { return robot_base_pose_; }
@@ -96,8 +117,12 @@ protected:
   const Eigen::Affine3d robot_base_pose_;
   const std::vector<Eigen::Affine3d> object_poses_;
   std::size_t state_hash_;
-  std::vector<std::size_t> features_;
+  std::vector<std::size_t> features_; // IWk features
   const std::string object_attached_;
   const Eigen::Affine3d *selected_grasp_; // Not considered for hash, only a helper info
-  // std::vector<moveit_msgs::CollisionObject> object_poses_;
+  // Sketch Features:
+  std::unordered_set<std::size_t> misplaced_objects_;
+  std::size_t min_obstructing_objects_;
+  std::size_t sum_min_objects_obstructing_each_misplaced_object_;
+  //Holding or not an object is also a feature but is the same as HasObjectAttached
 };

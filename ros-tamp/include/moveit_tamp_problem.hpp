@@ -64,6 +64,10 @@ protected:
   //   // Detach collision object
   //   DetachCollisionObject(obj_id, final_pose);
   // }
+  bool SetActiveSketchRule(State *const state) override;
+  void ComputeStateSketchFeatures(State *const state) const;
+  bool Misplaced(const std::string &name, const Eigen::Affine3d &pose) const;
+  void SetBlockingObjects(MoveitTampState *const state) const;
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
@@ -113,6 +117,14 @@ protected:
   void AddTestCollision(); // TEST ONLY
 
   // Classes
+  enum SketchRules { END, PICK_MISPLACED_OBJECT, PICK_OBSTRUCTING_OBJECT, PLACE_OBJECT };
+  struct SketchFeatures {
+    std::size_t m;
+    std::size_t n;
+    std::size_t s;
+    bool H;
+  };
+
   class BaseStateSpace {
   public:
     bool isValid(double x, double y, double yaw) const {
@@ -187,6 +199,9 @@ protected:
   std::size_t num_group_joints_;
   moveit_msgs::GetPositionIK srv_;
   std::default_random_engine generator_;
+  SketchRules active_sketch_rule_;
+  SketchFeatures start_state_sketch_features_;
+
   // Statistics
   std::size_t num_move_base_, num_pick_, num_place_, num_total_ik_calls_, num_successful_ik_calls_,
       num_total_motion_plans_, num_successful_motion_plans_;

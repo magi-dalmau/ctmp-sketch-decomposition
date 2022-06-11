@@ -10,11 +10,11 @@ public:
 
                                       };
 
-  virtual bool Solve(Plan &plan, bool lazy = false) override {
+  virtual bool Solve(Plan &plan, bool lazy = false, State *const start = nullptr) override {
     std::cout << "Solve IWk" << std::endl;
     Clear();
     for (k_ = 1; k_ <= k_max_; ++k_) {
-      if (BrFS::Solve(plan, lazy)) {
+      if (BrFS::Solve(plan, lazy, start)) {
         return true;
       } else {
         Clear();

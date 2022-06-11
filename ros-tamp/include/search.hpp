@@ -15,11 +15,10 @@ public:
   Search(Problem *const problem) : problem_(problem){};
   virtual ~Search() { Clear(); };
 
-  virtual bool Solve(Plan &plan, bool lazy = false) {
+  virtual bool Solve(Plan &plan, bool lazy = false, State *const start = nullptr) {
     std::cout << "Starting solver" << std::endl;
     Clear();
-
-    root_node_ = new Node(problem_->Start());
+    root_node_ = new Node(start ? start->Clone() : problem_->Start());
     num_open_++;
     AddToOpen(root_node_);
     auto node = ExtractNode();

@@ -15,6 +15,15 @@ public:
     std::reverse(costs.begin(), costs.end());
   }
 
+  virtual void append(const Plan &other) {
+    for (std::size_t i = 0; i < other.actions.size(); ++i) {
+      states.push_back(other.states.at(i + 1)->Clone());
+      actions.push_back(other.actions.at(i)->Clone());
+      costs.push_back(other.costs.at(i));
+    }
+    total_cost += other.total_cost;
+  }
+
   virtual void clear() {
     for (auto state : states)
       delete state;
@@ -32,7 +41,7 @@ public:
   virtual void print(std::ostream &os) const {
     std::cout << "Plan found from root " << *states.front() << " to goal " << *states.back() << "\nTotal cost "
               << total_cost << std::endl;
-    std::cout<<"Path:"<<std::endl;
+    std::cout << "Path:" << std::endl;
     std::cout << *states.front() << std::endl;
     for (std::size_t k = 0; k < actions.size(); ++k) {
       std::cout << "\t" << *actions.at(k) << " with cost " << costs.at(k) << std::endl;

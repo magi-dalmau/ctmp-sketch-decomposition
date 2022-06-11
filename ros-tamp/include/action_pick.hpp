@@ -16,7 +16,7 @@ public:
     target_object_pose_ = target_object_pose;
   };
 
-  virtual Action *Clone() const {
+  virtual Action *Clone() const override {
     return new PickAction(target_object_id_, joint_goal_, selected_grasp_, target_object_pose_);
   };
 

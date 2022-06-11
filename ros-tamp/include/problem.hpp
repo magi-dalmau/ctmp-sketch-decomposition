@@ -1,8 +1,8 @@
 #pragma once
 #include <action.hpp>
+#include <plan.hpp>
 #include <state.hpp>
 #include <vector>
-#include <plan.hpp>
 
 class Problem {
 public:
@@ -21,8 +21,9 @@ public:
     }
     return valid_actions;
   };
+  virtual bool SetActiveSketchRule(State *const state) { return true; }
 
-  virtual bool IsActionValid(State const *const state, Action  *const action, bool lazy = false) { return true; };
+  virtual bool IsActionValid(State const *const state, Action *const action, bool lazy = false) { return true; };
   virtual State *const GetSuccessor(State const *const state, Action const *const action) = 0;
   virtual double GetCost(State const *const state, Action const *const action) { return 1.; };
   virtual void print(std::ostream &os) const = 0;
@@ -31,8 +32,8 @@ public:
     obj.print(os);
     return os;
   }
-  virtual void PrintStatistics() const=0;
-  virtual bool ExecutePlan(const Plan &plan) {return false;}
+  virtual void PrintStatistics() const = 0;
+  virtual bool ExecutePlan(const Plan &plan) { return false; }
 
 protected:
   std::vector<Action *> actions_;
