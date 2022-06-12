@@ -20,14 +20,18 @@ class MoveitTampState : public State {
 
 public:
   MoveitTampState(Eigen::Affine3d base_pose, std::vector<Eigen::Affine3d> object_poses, std::size_t hash,
+                  std::size_t local_hash, std::vector<std::size_t> on_workspace_objects,
                   std::vector<std::size_t> features, const std::string attached_obj_id = "",
                   const Eigen::Affine3d *selected_grasp = nullptr)
-      : robot_base_pose_(base_pose), object_poses_(object_poses), state_hash_(hash), features_(features),
-        object_attached_(attached_obj_id), selected_grasp_(selected_grasp){
+      : robot_base_pose_(base_pose), object_poses_(object_poses), state_hash_(hash), state_local_hash_(local_hash),
+        on_workspace_objects_(on_workspace_objects), features_(features), object_attached_(attached_obj_id),
+        selected_grasp_(selected_grasp){
 
-                                           };
+        };
 
   virtual std::size_t GetHash() const override { return state_hash_; }
+  virtual std::size_t GetLocalHash() const { return state_local_hash_; }
+
   // void CombineHashBasePose(std::size_t &hash) const { CombineHashPose(hash, robot_base_pose_); }
   // void CombineHashObjectsData(std::size_t &hash) const {
   //   for (const auto pose : object_poses_) {
@@ -36,8 +40,8 @@ public:
   // };
 
   virtual State *Clone() const override {
-    return new MoveitTampState(robot_base_pose_, object_poses_, state_hash_, features_, object_attached_,
-                               selected_grasp_);
+    return new MoveitTampState(robot_base_pose_, object_poses_, state_hash_, state_local_hash_, on_workspace_objects_,
+                               features_, object_attached_, selected_grasp_);
   }
 
   virtual std::vector<std::size_t> GetFeatures() const override { return features_; };
@@ -73,6 +77,7 @@ public:
   };
 
   bool HasObjectAttached() const { return !object_attached_.empty(); };
+  std::vector<std::size_t> GetOnWorkspaceObjects() const{ return on_workspace_objects_; }
   Eigen::Affine3d GetRobotBasePose() const { return robot_base_pose_; }
   std::vector<Eigen::Affine3d> GetObjectPoses() const { return object_poses_; }
   std::string GetAttatchedObject() const { return object_attached_; }
@@ -117,6 +122,8 @@ protected:
   const Eigen::Affine3d robot_base_pose_;
   const std::vector<Eigen::Affine3d> object_poses_;
   std::size_t state_hash_;
+  std::size_t state_local_hash_;
+  std::vector<std::size_t> on_workspace_objects_;
   std::vector<std::size_t> features_; // IWk features
   const std::string object_attached_;
   const Eigen::Affine3d *selected_grasp_; // Not considered for hash, only a helper info
@@ -124,5 +131,5 @@ protected:
   std::unordered_set<std::size_t> misplaced_objects_;
   std::size_t min_obstructing_objects_;
   std::size_t sum_min_objects_obstructing_each_misplaced_object_;
-  //Holding or not an object is also a feature but is the same as HasObjectAttached
+  // Holding or not an object is also a feature but is the same as HasObjectAttached
 };

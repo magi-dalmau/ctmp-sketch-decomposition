@@ -21,7 +21,7 @@ public:
     }
     return valid_actions;
   };
-  virtual bool SetActiveSketchRule(State *const state) { return true; }
+  virtual bool SetActiveSketchRule(const State *const state) { return true; }
 
   virtual bool IsActionValid(State const *const state, Action *const action, bool lazy = false) { return true; };
   virtual State *const GetSuccessor(State const *const state, Action const *const action) = 0;

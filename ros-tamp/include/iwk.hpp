@@ -2,7 +2,6 @@
 #include <brfs.hpp>
 #include <set>
 
-
 class IWk : public BrFS {
 public:
   IWk(Problem *const problem, const std::size_t k_max = 2)
@@ -10,16 +9,19 @@ public:
 
                                       };
 
-  virtual bool Solve(Plan &plan, bool lazy = false, State *const start = nullptr) override {
+  virtual bool Solve(Plan &plan, bool lazy = false, const State *const start = nullptr) override {
     std::cout << "Solve IWk" << std::endl;
     Clear();
     for (k_ = 1; k_ <= k_max_; ++k_) {
       if (BrFS::Solve(plan, lazy, start)) {
+        std::cout << "Solved with K=" << k_ << std::endl;
         return true;
       } else {
         Clear();
       }
     }
+    std::cout << "Solution not found with Kmax=" << k_ << std::endl;
+
     return false;
   }
 
@@ -129,24 +131,24 @@ protected:
   }
 
   virtual bool Prune(Node *const node) override {
-    std::cout << "Prune IWk" << std::endl;
+    // std::cout << "Prune IWk" << std::endl;
 
     auto atoms = node->GetState()->GetFeatures();
-    for_each(atoms.begin(), atoms.end(), [](const std::size_t &a) { std::cout << a << " "; });
-    std::cout << std::endl;
+    // for_each(atoms.begin(), atoms.end(), [](const std::size_t &a) { std::cout << a << " "; });
+    // std::cout << std::endl;
     std::sort(atoms.begin(), atoms.end());
 
     bool updated = false;
-    std::cout << k_ << " " << atoms.size() << " " << novelty_hash_tables_.size() << std::endl;
+    // std::cout << k_ << " " << atoms.size() << " " << novelty_hash_tables_.size() << std::endl;
     for (std::size_t i = 1; i <= std::min(k_, atoms.size()); ++i) {
-      const auto old_size = novelty_hash_tables_.at(i-1).size();
+      const auto old_size = novelty_hash_tables_.at(i - 1).size();
       for (const auto &tuple : combinations(atoms.begin(), atoms.end(), i)) {
         std::size_t hash = 0;
         CombineHashVector<std::size_t>(hash, tuple);
-        novelty_hash_tables_.at(i-1)[hash].push_back(node);
+        novelty_hash_tables_.at(i - 1)[hash].push_back(node);
       }
       if (!updated)
-        updated = (old_size != novelty_hash_tables_.at(i-1).size());
+        updated = (old_size != novelty_hash_tables_.at(i - 1).size());
     }
 
     return !updated;
@@ -165,14 +167,18 @@ protected:
       for (const auto &tuple : combinations(atoms.begin(), atoms.end(), i)) {
         std::size_t hash = 0;
         CombineHashVector<std::size_t>(hash, tuple);
-        auto iter_tuple = novelty_hash_tables_.at(i-1).find(hash);
-        if (iter_tuple == novelty_hash_tables_.at(i-1).end()) {
+        auto iter_tuple = novelty_hash_tables_.at(i - 1).find(hash);
+        if (iter_tuple == novelty_hash_tables_.at(i - 1).end()) {
           continue; // TODO: Caldria llençar algun error? se suposa que hi hauria de ser...
         }
-        affected_hashes.at(i).insert(hash);
         auto iter_node = std::find(iter_tuple->second.begin(), iter_tuple->second.end(), node);
         if (iter_node != iter_tuple->second.end()) {
           iter_tuple->second.erase(iter_node);
+          if (iter_tuple->second.empty()) {
+            novelty_hash_tables_.at(i - 1).erase(iter_tuple);
+          } else {
+            affected_hashes.at(i - 1).insert(hash);
+          }
         }
       }
     }
@@ -191,8 +197,8 @@ protected:
     affected_hashes.resize(k_);
     RepairNoveltyTable(node, affected_hashes);
     for (size_t i = 1; i <= k_; i++) {
-      for (const auto hash : affected_hashes.at(i-1)) {
-        auto substitute = novelty_hash_tables_.at(i-1).at(hash).at(0);
+      for (const auto hash : affected_hashes.at(i - 1)) {
+        auto substitute = novelty_hash_tables_.at(i - 1).at(hash).at(0);
         if (FindNodeInClose(substitute)) {
           continue;
         }
@@ -204,7 +210,7 @@ protected:
           AddToTempOpen(duplicate_pruned_iter->second);
           pruned_hash_table_.erase(duplicate_pruned_iter);
         } else {
-          std::cout<<"ERROR: Substitute node not found in any container"<<std::endl;
+          std::cout << "ERROR: Substitute node not found in any container" << std::endl;
         }
       }
     }
@@ -219,7 +225,7 @@ protected:
   };
 
   virtual void ManagePruned(Node *const node) override {
-    std::cout << "ManagePruned IWk" << std::endl;
+    // std::cout << "ManagePruned IWk" << std::endl;
 
     auto inserted = pruned_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node)).second;
     assert(inserted);

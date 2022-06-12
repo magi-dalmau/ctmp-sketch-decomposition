@@ -8,38 +8,56 @@ public:
 
         };
 
-  virtual bool Solve(Plan &plan, bool lazy = false, State *const start = nullptr) override {
+  virtual bool Solve(Plan &plan, bool lazy = false, const State *const start = nullptr) override {
     std::cout << "Solve SIWr" << std::endl;
     Clear();
-    State *start_state = nullptr;
-    State *prev_start_state = nullptr;
+    const State *start_state = nullptr;
+    const State *prev_start_state = nullptr;
 
     start_state = start ? start->Clone() : problem_->Start();
     bool failed = false;
     bool succeeded = false;
-    
+
     while (!failed && !succeeded) {
-      problem_->SetActiveSketchRule(start);
-      failed = !(IWk::Solve(plan, lazy, start));
+      Plan sub_plan;
+      printStatistics();
+      problem_->SetActiveSketchRule(start_state);
+      failed = !(IWk::Solve(sub_plan, lazy, start_state));
       if (!failed) {
+        num_subproblems_solved_++;
+        if (plan.states.empty()) {
+          sub_plan.copy(plan);
+        } else {
+          plan.append(sub_plan);
+        }
         if (prev_start_state && start_state->GetHash() == prev_start_state->GetHash()) {
           succeeded = true;
         } else {
-          delete prev_start_state; // TODO: cal?
+          delete prev_start_state;
           prev_start_state = start_state;
-          delete start_state; // TODO: cal?
           start_state = plan.states.back()->Clone();
         }
       }
     }
     delete start_state;
     delete prev_start_state;
-    if (succeeded) {
-      return true;
-    } else {
-      return false;
-    }
+    printStatistics();
+    if (!succeeded)
+      plan.clear();
+    return succeeded;
+  }
+
+  virtual void Clear() override {
+    IWk::Clear();
+    num_subproblems_solved_ = 0;
+  }
+
+  virtual void printStatistics() const override {
+    std::cout << "Subproblems solved: " << num_subproblems_solved_ << "\n Current subproblem statistics: " << std::endl;
+    IWk::printStatistics();
   }
 
 protected:
+  // Extra statistics:
+  std::size_t num_subproblems_solved_;
 };

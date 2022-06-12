@@ -15,7 +15,7 @@ public:
   Search(Problem *const problem) : problem_(problem){};
   virtual ~Search() { Clear(); };
 
-  virtual bool Solve(Plan &plan, bool lazy = false, State *const start = nullptr) {
+  virtual bool Solve(Plan &plan, bool lazy = false, const State *const start = nullptr) {
     std::cout << "Starting solver" << std::endl;
     Clear();
     root_node_ = new Node(start ? start->Clone() : problem_->Start());
@@ -68,7 +68,7 @@ protected:
     // std::cout << "Starting processing " << *parent->GetState() << std::endl;
     for (const auto action : problem_->GetValidActions(parent->GetState(), lazy)) {
       double action_cost = problem_->GetCost(parent->GetState(), action);
-      auto successor = new Node(problem_->GetSuccessor(parent->GetState(), action), parent, action, action_cost);
+      auto successor = new Node(problem_->GetSuccessor(parent->GetState(), action), parent, action->Clone(), action_cost);
 
       assert(successor->GetState()->GetHash() != parent->GetState()->GetHash());
 
@@ -176,7 +176,8 @@ protected:
 
   virtual bool GetPlan(Plan &plan, Node *const goal) {
     num_plans_++;
-    std::cout << "Starting plan computation from goal " << *goal->GetState() << std::endl;
+    //std::cout << "Starting plan computation from goal " << *goal->GetState() << std::endl;
+    std::cout << "Starting plan computation" << std::endl;
     // std::string x;
     // std::cin >> x;
 

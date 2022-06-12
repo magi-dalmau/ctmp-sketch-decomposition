@@ -64,10 +64,11 @@ protected:
   //   // Detach collision object
   //   DetachCollisionObject(obj_id, final_pose);
   // }
-  bool SetActiveSketchRule(State *const state) override;
+  bool SetActiveSketchRule(const State *const state) override;
   void ComputeStateSketchFeatures(State *const state) const;
+  void SetMisplacedObjects(MoveitTampState *const state) const;
   bool Misplaced(const std::string &name, const Eigen::Affine3d &pose) const;
-  void SetBlockingObjects(MoveitTampState *const state) const;
+  void SetBlockingObjects(MoveitTampState *const state,bool compute_s = false) const;
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
@@ -108,8 +109,8 @@ protected:
                                          const std::string &named_target);
 
   void ComputeHashes(const Eigen::Affine3d &base_pose, const std::vector<Eigen::Affine3d> &object_poses,
-                     const std::string &attached_object, std::size_t &state_hash,
-                     std::vector<std::size_t> &features_hashes) const;
+                     const std::string &attached_object, std::size_t &state_hash, std::size_t &state_local_hash,
+                     std::vector<std::size_t> &on_workspace_objects, std::vector<std::size_t> &features_hashes) const;
   // visualization
   void Publish(const ros::TimerEvent &event);
 
@@ -201,8 +202,11 @@ protected:
   std::default_random_engine generator_;
   SketchRules active_sketch_rule_;
   SketchFeatures start_state_sketch_features_;
+  double blocking_object_distance_threshold_;
+
+  std::unordered_map<std::size_t, std::vector<Action *>> discovered_valid_actions_;
 
   // Statistics
   std::size_t num_move_base_, num_pick_, num_place_, num_total_ik_calls_, num_successful_ik_calls_,
-      num_total_motion_plans_, num_successful_motion_plans_;
+      num_total_motion_plans_, num_successful_motion_plans_, reused_valid_actions_;
 };

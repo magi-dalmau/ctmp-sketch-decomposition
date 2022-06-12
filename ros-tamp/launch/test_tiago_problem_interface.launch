@@ -19,6 +19,8 @@
         <param name="rviz_visualization" type="bool" value="true" />
         <param name="num_sops" type="int" value="4" />
         <param name="k_max" type="int" value="2" />
+        <param name="blocking_object_distance_threshold" type="double" value="0.3" />
+
 
         <rosparam command="load" file="$(find tiago_moveit_config)/config/kinematics_kdl.yaml" />
     </node>

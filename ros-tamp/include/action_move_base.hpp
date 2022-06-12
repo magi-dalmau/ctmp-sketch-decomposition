@@ -4,12 +4,11 @@
 
 class MoveBaseAction : public Action {
 public:
-  MoveBaseAction(const Eigen::Affine3d &target_location) : Action() {
-    action_id_ = "MOVE_BASE";
-    target_location_ = target_location;
-  };
+  MoveBaseAction(const Eigen::Affine3d &target_location,
+                 const std::vector<Eigen::Affine3d> &via_points = std::vector<Eigen::Affine3d>())
+      : Action(), action_id_("MOVE_BASE"), target_location_(target_location), via_points_(via_points){};
 
-  virtual Action *Clone() const override { return new MoveBaseAction(target_location_); };
+  virtual Action *Clone() const override { return new MoveBaseAction(target_location_, via_points_); };
 
   void print(std::ostream &os) const override {
 

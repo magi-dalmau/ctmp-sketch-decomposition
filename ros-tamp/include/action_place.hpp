@@ -8,16 +8,18 @@
 class PlaceAction : public Action {
 public:
   PlaceAction(const std::string &target_object_id, const moveit_msgs::RobotState::_joint_state_type &joint_goal,
-              const Eigen::Affine3d target_object_pose)
-      : Action() {
-    action_id_ = "PLACE";
-    target_object_id_ = target_object_id;
-    joint_goal_ = joint_goal;
-    target_object_pose_ = target_object_pose;
+              const Eigen::Affine3d target_object_pose,
+              moveit::planning_interface::MoveGroupInterface::Plan to_object_plan =
+                  moveit::planning_interface::MoveGroupInterface::Plan(),
+              moveit::planning_interface::MoveGroupInterface::Plan to_home_plan =
+                  moveit::planning_interface::MoveGroupInterface::Plan())
+      : Action(), action_id_("PLACE"), target_object_id_(target_object_id), joint_goal_(joint_goal),
+        target_object_pose_(target_object_pose), to_object_plan_(to_object_plan), to_home_plan_(to_home_plan) {
+    ;
   };
 
   virtual Action *Clone() const override {
-    return new PlaceAction(target_object_id_, joint_goal_, target_object_pose_);
+    return new PlaceAction(target_object_id_, joint_goal_, target_object_pose_, to_object_plan_, to_home_plan_);
   };
 
   void print(std::ostream &os) const override {
@@ -44,9 +46,9 @@ public:
 protected:
   std::string action_id_;
   std::string target_object_id_;
+  moveit_msgs::RobotState::_joint_state_type joint_goal_;
   Eigen::Affine3d
       target_object_pose_; // This includes world to placement + placement to object (i.e. stable object pose)
-  moveit_msgs::RobotState::_joint_state_type joint_goal_;
   moveit::planning_interface::MoveGroupInterface::Plan to_object_plan_;
   moveit::planning_interface::MoveGroupInterface::Plan to_home_plan_;
 };

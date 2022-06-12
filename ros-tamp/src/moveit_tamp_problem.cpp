@@ -69,7 +69,9 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   num_place_ = 0;
   num_total_ik_calls_ = 0;
   num_successful_ik_calls_ = 0;
+  reused_valid_actions_ = 0;
   // PARAMS
+  blocking_object_distance_threshold_ = nh_.param("blocking_object_distance_threshold", 0.2);
   ik_service_name_ = nh_.param("ik_service_name", std::string("/compute_ik"));
   common_reference_ = nh_.param("common_reference", std::string("world"));
   tf_broadcaster_.sendTransform(tf::StampedTransform(tf::Transform(), ros::Time::now(), common_reference_,
@@ -119,7 +121,14 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   ROS_DEBUG("PROBLEM INITIALIZED");
 }
 
-MoveitTampProblem::~MoveitTampProblem() { display_timer_.stop(); }
+MoveitTampProblem::~MoveitTampProblem() {
+  display_timer_.stop();
+  for (auto &state_actions : discovered_valid_actions_) {
+    for (auto &action : state_actions.second) {
+      delete action;
+    }
+  }
+}
 
 void MoveitTampProblem::LoadWorld(const std::string &filename) {
 
@@ -681,10 +690,12 @@ State *const MoveitTampProblem::Start() const {
   }
 
   std::size_t state_hash;
+  std::size_t state_local_hash;
+  std::vector<std::size_t> on_workspace_objects;
   std::vector<std::size_t> features;
-  ComputeHashes(robot_origin_, object_poses, "", state_hash, features);
+  ComputeHashes(robot_origin_, object_poses, "", state_hash, state_local_hash, on_workspace_objects, features);
 
-  return new MoveitTampState(robot_origin_, object_poses, state_hash, features);
+  return new MoveitTampState(robot_origin_, object_poses, state_hash, state_local_hash, on_workspace_objects, features);
 }
 
 bool MoveitTampProblem::ComputeIK(
@@ -929,52 +940,101 @@ bool MoveitTampProblem::ExecutePlan(const moveit::planning_interface::MoveGroupI
 void MoveitTampProblem::ComputeStateSketchFeatures(State *const state) const {
   // compute state features
   auto casted_state = dynamic_cast<MoveitTampState *>(state);
+  SetMisplacedObjects(casted_state);
+  SetBlockingObjects(casted_state, true);
+}
+
+void MoveitTampProblem::SetMisplacedObjects(MoveitTampState *const state) const {
   std::unordered_set<std::size_t> state_misplaced_objects;
   for (std::size_t i = 0; i < objects_.size(); ++i) {
-    if (Misplaced(object_names_.at(i), casted_state->GetObjectPoses().at(i)))
+    if (state->GetAttatchedObject() != object_names_.at(i) &&
+        Misplaced(object_names_.at(i), state->GetObjectPoses().at(i)))
       state_misplaced_objects.insert(i);
   }
-  casted_state->SetMisplacedObjects(state_misplaced_objects);
-  SetBlockingObjects(casted_state);
+  state->SetMisplacedObjects(state_misplaced_objects);
 }
 
 bool MoveitTampProblem::IsGoal(State const *const state) const {
 
-  if (active_sketch_rule_ == MoveitTampProblem::END)
-    return true;                    // State is a final goal
+  if (active_sketch_rule_ == MoveitTampProblem::END) {
+    std::cout << "FINAL GOAL FOUND" << std::endl;
+    return true; // State is a final goal
+  }
   auto state_copy = state->Clone(); // TODO: Alguna manera més elegant?
   auto casted_state = dynamic_cast<MoveitTampState *>(state_copy);
-  ComputeStateSketchFeatures(casted_state);
-  std::size_t H = casted_state->HasObjectAttached();
-  std::size_t m = casted_state->GetNumOfMisplacedObjects();
-  std::size_t n = casted_state->GetMinObstructingObjects();
-  std::size_t s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
-  delete state_copy;
+  bool H = casted_state->HasObjectAttached();
+  std::size_t m, n, s;
+
   switch (active_sketch_rule_) {
   case MoveitTampProblem::PICK_MISPLACED_OBJECT:
-    if (H && m < start_state_sketch_features_.m) {
+    if (!H) {
+      delete state_copy;
+      return false;
+    }
+    SetMisplacedObjects(casted_state);
+    m = casted_state->GetNumOfMisplacedObjects();
+    if (m < start_state_sketch_features_.m) {
+      std::cout << "PICK_MISPLACED_OBJECT SUBGOAL FOUND" << std::endl;
+      std::cout << "H is now: " << H << " and m decremented from " << start_state_sketch_features_.m << " to " << m
+                << std::endl;
+      delete state_copy;
       return true;
     } else {
+      delete state_copy;
       return false;
     }
     break;
+
   case MoveitTampProblem::PICK_OBSTRUCTING_OBJECT:
-    if (H && s < start_state_sketch_features_.s) {
+    if (!H) {
+      delete state_copy;
+      return false;
+    }
+    SetMisplacedObjects(casted_state);
+    SetBlockingObjects(casted_state, true);
+    s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
+    if (s < start_state_sketch_features_.s) {
+      std::cout << "PICK_OBSTRUCTING_OBJECT SUBGOAL FOUND" << std::endl;
+      std::cout << "H is now: " << H << "and s decremented from " << start_state_sketch_features_.s << " to " << s
+                << std::endl;
+      delete state_copy;
       return true;
     } else {
+      delete state_copy;
       return false;
     }
     break;
+
   case MoveitTampProblem::PLACE_OBJECT:
-    if (!H && m == start_state_sketch_features_.m && n == start_state_sketch_features_.n &&
-        s == start_state_sketch_features_.s) {
+    if (H) {
+      delete state_copy;
+      return false;
+    }
+    SetMisplacedObjects(casted_state);
+    m = casted_state->GetNumOfMisplacedObjects();
+    if (m != start_state_sketch_features_.m) {
+      delete state_copy;
+      return false;
+    }
+    SetBlockingObjects(casted_state, true);
+    n = casted_state->GetMinObstructingObjects();
+    s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
+    if (n == start_state_sketch_features_.n && s == start_state_sketch_features_.s) {
+      std::cout << "PLACE_OBJECT SUBGOAL FOUND" << std::endl;
+      std::cout << "H is now: " << H
+                << " and features m,n,s keep its values (start values: " << start_state_sketch_features_.m << ", "
+                << start_state_sketch_features_.n << ", " << start_state_sketch_features_.s << ") (end values: " << m
+                << ", " << n << ", " << s << ")" << std::endl;
+      delete state_copy;
       return true;
     } else {
+      delete state_copy;
       return false;
     }
     break;
 
   default:
+    delete state_copy;
     return false;
     break;
   }
@@ -1092,8 +1152,8 @@ bool MoveitTampProblem::OnWorkspace(const Eigen::Affine3d &robot_base_pose, cons
 bool MoveitTampProblem::OnCircle(const Eigen::Vector3d &origin, const double radius,
                                  const Eigen::Vector3d &target) const {
 
-  // NOTE: World coordinates assumed to have z inverse to gravity direction. Assumed that robot can lift its first joint
-  // in order to have each maximum reachability distance at the height of the object
+  // NOTE: World coordinates assumed to have z inverse to gravity direction. Assumed that robot can lift its first
+  // joint in order to have each maximum reachability distance at the height of the object
   const auto dx = (target(0) > origin(0)) ? (target(0) - origin(0)) : (origin(0) - target(0));
   if (dx > radius)
     return false;
@@ -1118,7 +1178,14 @@ Cases:
 ---1)Place (obj_?ID)
 ---2)Move Base (connected locations)
 */
+
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
+  auto actions_iter = discovered_valid_actions_.find(casted_state->GetHash());
+  if (actions_iter != discovered_valid_actions_.end()) {
+    reused_valid_actions_++;
+    return actions_iter->second;
+  }
+
   std::vector<Action *> valid_actions;
   const Eigen::Affine3d robot_base_tf_inverse = casted_state->GetRobotBasePose().inverse();
 
@@ -1188,9 +1255,7 @@ Cases:
     }
   } else {
     const auto obj_poses = casted_state->GetObjectPoses();
-    for (size_t i = 0; i < obj_poses.size(); i++) {
-      if (!OnWorkspace(casted_state->GetRobotBasePose(), obj_poses.at(i)))
-        continue;
+    for (const auto i : casted_state->GetOnWorkspaceObjects()) {
 
       const auto object = objects_.find(object_names_.at(i));
       if (object == objects_.end()) {
@@ -1228,7 +1293,7 @@ Cases:
     num_move_base_++;
     valid_actions.push_back(action);
   }
-
+  discovered_valid_actions_.insert(std::make_pair(casted_state->GetHash(), valid_actions));
   return valid_actions;
 }
 
@@ -1326,9 +1391,11 @@ bool MoveitTampProblem::IsActionValid(State const *const state, Action *const ac
 
 State *const MoveitTampProblem::GetSuccessor(State const *const state, Action const *const action) {
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
-  // TODO: Maybe a more elegant way to organize kinds of actions, maybe each action should have an Apply method but then
-  // is state dependent...
+  // TODO: Maybe a more elegant way to organize kinds of actions, maybe each action should have an Apply method but
+  // then is state dependent...
   std::size_t state_hash;
+  std::size_t state_local_hash;
+  std::vector<std::size_t> on_workspace_objects;
   std::vector<std::size_t> features;
   if (auto move_base_action = dynamic_cast<const MoveBaseAction *>(action)) {
     if (casted_state->HasObjectAttached()) {
@@ -1338,16 +1405,18 @@ State *const MoveitTampProblem::GetSuccessor(State const *const state, Action co
           new_object_poses.at(object_indices.at(casted_state->GetAttatchedObject()));
 
       ComputeHashes(move_base_action->GetTargetLocation(), new_object_poses, casted_state->GetAttatchedObject(),
-                    state_hash, features);
+                    state_hash, state_local_hash, on_workspace_objects, features);
 
-      return new MoveitTampState(move_base_action->GetTargetLocation(), new_object_poses, state_hash, features,
-                                 casted_state->GetAttatchedObject(), casted_state->GetGrasp());
+      return new MoveitTampState(move_base_action->GetTargetLocation(), new_object_poses, state_hash, state_local_hash,
+                                 on_workspace_objects, features, casted_state->GetAttatchedObject(),
+                                 casted_state->GetGrasp());
 
     } else {
-      ComputeHashes(move_base_action->GetTargetLocation(), casted_state->GetObjectPoses(), "", state_hash, features);
+      ComputeHashes(move_base_action->GetTargetLocation(), casted_state->GetObjectPoses(), "", state_hash,
+                    state_local_hash, on_workspace_objects, features);
 
       return new MoveitTampState(move_base_action->GetTargetLocation(), casted_state->GetObjectPoses(), state_hash,
-                                 features);
+                                 state_local_hash, on_workspace_objects, features);
     }
 
   } else if (auto pick_action = dynamic_cast<const PickAction *>(action)) {
@@ -1355,57 +1424,34 @@ State *const MoveitTampProblem::GetSuccessor(State const *const state, Action co
     new_object_poses.at(object_indices.at(pick_action->GetTargetObjectId())) =
         casted_state->GetRobotBasePose() * gripper_home_wrt_robot_base * pick_action->GetGrasp()->inverse();
     ComputeHashes(casted_state->GetRobotBasePose(), new_object_poses, pick_action->GetTargetObjectId(), state_hash,
-                  features);
+                  state_local_hash, on_workspace_objects, features);
 
-    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses, state_hash, features,
-                               pick_action->GetTargetObjectId(), pick_action->GetGrasp());
+    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses, state_hash, state_local_hash,
+                               on_workspace_objects, features, pick_action->GetTargetObjectId(),
+                               pick_action->GetGrasp());
 
   } else if (auto place_action = dynamic_cast<const PlaceAction *>(action)) {
     std::vector<Eigen::Affine3d> new_object_poses = casted_state->GetObjectPoses();
     new_object_poses.at(object_indices.at(place_action->GetTargetObjectId())) = place_action->GetTargetObjectPose();
-    ComputeHashes(casted_state->GetRobotBasePose(), new_object_poses, "", state_hash, features);
+    ComputeHashes(casted_state->GetRobotBasePose(), new_object_poses, "", state_hash, state_local_hash,
+                  on_workspace_objects, features);
 
-    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses, state_hash, features);
+    return new MoveitTampState(casted_state->GetRobotBasePose(), new_object_poses, state_hash, state_local_hash,
+                               on_workspace_objects, features);
   } else {
     ROS_ERROR("UNRECOGNIZED ACTION CLASS");
     return nullptr;
   }
 }
 
-bool MoveitTampProblem::SetActiveSketchRule(State *const state) {
-  ComputeStateSketchFeatures(state);
-  auto casted_state = dynamic_cast<const MoveitTampState *>(state);
-  start_state_sketch_features_.H = casted_state->HasObjectAttached();
-  start_state_sketch_features_.m = casted_state->GetNumOfMisplacedObjects();
-  start_state_sketch_features_.n = casted_state->GetMinObstructingObjects();
-  start_state_sketch_features_.s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
-  if (!start_state_sketch_features_.H) {
-    if (start_state_sketch_features_.m == 0) {
-      active_sketch_rule_ = MoveitTampProblem::END;
-      return true;
-    } else if (start_state_sketch_features_.m > 0) {
-      if (start_state_sketch_features_.n == 0) {
-        active_sketch_rule_ = MoveitTampProblem::PICK_MISPLACED_OBJECT;
-      } else if (start_state_sketch_features_.n > 0) {
-        active_sketch_rule_ = MoveitTampProblem::PICK_OBSTRUCTING_OBJECT;
-      } else {
-        throw std::runtime_error("Malformed sketch feature min obstructing object");
-      }
-    } else {
-      throw std::runtime_error("Malformed sketch feature num misplaced objects");
-    }
-  } else {
-    active_sketch_rule_ = MoveitTampProblem::PLACE_OBJECT;
-  }
-  return true;
-}
-
 void MoveitTampProblem::ComputeHashes(const Eigen::Affine3d &base_pose,
                                       const std::vector<Eigen::Affine3d> &object_poses,
                                       const std::string &attached_object, std::size_t &state_hash,
+                                      std::size_t &state_local_hash, std::vector<std::size_t> &on_workspace_objects,
                                       std::vector<std::size_t> &features_hashes) const {
   // Base related hashs
   state_hash = 0;
+  state_local_hash = 0;
   CombineHashPose(state_hash, base_pose);
   std::size_t hash = 0;
   hash_combine<std::string>(hash, std::string("robot"));
@@ -1426,6 +1472,11 @@ void MoveitTampProblem::ComputeHashes(const Eigen::Affine3d &base_pose,
       continue;
 
     CombineHashPose(state_hash, object_poses.at(i));
+    if (OnWorkspace(base_pose, object_poses.at(i))) {
+      on_workspace_objects.push_back(i);
+      hash_combine<std::string>(state_local_hash, object_names_.at(i));
+      CombineHashPose(state_local_hash, object_poses.at(i));
+    }
 
     hash = 0;
     hash_combine<std::string>(hash, object_names_.at(i));
@@ -1434,12 +1485,84 @@ void MoveitTampProblem::ComputeHashes(const Eigen::Affine3d &base_pose,
                                             Eigen::Quaterniond::Identity()));
     } else {
       CombineHashPose(hash,
-                      base_pose); // To represent object grasped it is set as the base pose (it does not add unique info
-                                  // to multiply for the tf between the base and the gripper and the selected grasped is
-                                  // expressly excluded in order to have more abstraction)
+                      base_pose); // To represent object grasped it is set as the base pose (it does not add unique
+                                  // info to multiply for the tf between the base and the gripper and the selected
+                                  // grasped is expressly excluded in order to have more abstraction)
     }
     features_hashes.push_back(hash);
   };
+}
+
+bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
+  /*
+  SKETCH
+
+  misplaced block = goal block that is a in a wrong table; block is not regarded as "misplaced" if being held
+
+  Features:
+         H = true if holding object
+         m = number of misplaced blocks
+         n = min number of blocks obstructing the misplaced blocks, 0 if m=0
+         s = sum of min number of blocks obstructing all the misplaced blocks, 0 if m=0
+         Pi = OnWorkspace(best_misplaced_objects), false if m=0
+         Pl = OnWorkspace(placement : if placing attached object m ==)
+  Rules:
+
+  !H, m=0 -> END              --- END
+  !H !Pi, m>0 -> !H, Pi       --- MOVE_TO_PICK_TABLE
+  !H, Pi, m>0, n=0 -> H, m<   --- PICK_MISPLACED_OBJECT
+  !H, Pi, m>0, n>0 -> H, s<   --- PICK_OBSTRUCTING_OBJECT
+  H, !Pl -> H, Pl, m=, n=, s= --- MOVE_TO_PLACE_TABLE
+  H, Pl-> !H, m=, n=, s=      --- PLACE_OBJECT
+
+  // !H, m=0 -> END          --- END
+  // !H, m>0, n=0 -> H, m<   --- PICK_MISPLACED_OBJECT
+  // !H, m>0, n>0 -> H, s<   --- PICK_OBSTRUCTING_OBJECT
+  // H -> !H, m=, n=, s=     --- PLACE_OBJECT
+  */
+
+  // TODO optimize computing s or not
+  auto cloned_state = state->Clone();
+  ComputeStateSketchFeatures(cloned_state);
+  auto casted_state = dynamic_cast<const MoveitTampState *>(cloned_state);
+  start_state_sketch_features_.H = casted_state->HasObjectAttached();
+  start_state_sketch_features_.m = casted_state->GetNumOfMisplacedObjects();
+  start_state_sketch_features_.n = casted_state->GetMinObstructingObjects();
+  start_state_sketch_features_.s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
+  delete cloned_state;
+
+  std::cout << "Selecting subproblem sketch: "
+            << "\nStart state features are:"
+            << " H: " << start_state_sketch_features_.H << " m: " << start_state_sketch_features_.m
+            << " n: " << start_state_sketch_features_.n << " s: " << start_state_sketch_features_.s
+            << "\nThe selected sketch is: " << std::endl;
+
+  if (!start_state_sketch_features_.H) {
+    if (start_state_sketch_features_.m == 0) {
+      std::cout << "END PROBLEM" << std::endl;
+      active_sketch_rule_ = MoveitTampProblem::END;
+      return true;
+    } else if (start_state_sketch_features_.m > 0) {
+      if (start_state_sketch_features_.n == 0) {
+        std::cout << "PICK_MISPLACED_OBJECT" << std::endl;
+
+        active_sketch_rule_ = MoveitTampProblem::PICK_MISPLACED_OBJECT;
+      } else if (start_state_sketch_features_.n > 0) {
+        std::cout << "PICK_OBSTRUCTING_OBJECT" << std::endl;
+
+        active_sketch_rule_ = MoveitTampProblem::PICK_OBSTRUCTING_OBJECT;
+      } else {
+        throw std::runtime_error("Malformed sketch feature min obstructing object");
+      }
+    } else {
+      throw std::runtime_error("Malformed sketch feature num misplaced objects");
+    }
+  } else {
+    std::cout << "PLACE_OBJECT" << std::endl;
+
+    active_sketch_rule_ = MoveitTampProblem::PLACE_OBJECT;
+  }
+  return true;
 }
 
 bool MoveitTampProblem::Misplaced(const std::string &name, const Eigen::Affine3d &pose) const {
@@ -1462,22 +1585,29 @@ bool MoveitTampProblem::Misplaced(const std::string &name, const Eigen::Affine3d
   }
 }
 
-void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state) const {
+void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool compute_s) const {
 
   std::size_t min_num_blocking_objects = std::numeric_limits<std::size_t>::max();
   std::size_t sum_min_blocking_objects = 0;
 
-  for (std::size_t i = 0; i < object_names_.size(); i++) {
-    const auto &misplaced_object = objects_.at(object_names_.at(i));
-    const auto object_pose = state->GetObjectPoses().at(object_indices.at(misplaced_object.name_));
-    if (!misplaced_object.moveable_ || state->GetAttatchedObject() == misplaced_object.name_)
-      continue;
+  for (const auto misplaced_object_index : state->GetMisplacedObjects()) {
+    if (!compute_s && min_num_blocking_objects == 0)
+      break;
 
-    std::size_t min_num_object_blocking_objects = std::numeric_limits<std::size_t>::max();
+    const auto &misplaced_object = objects_.at(object_names_.at(misplaced_object_index));
+    const auto object_pose = state->GetObjectPoses().at(misplaced_object_index);
+
+    std::size_t min_num_object_blocking_objects =
+        compute_s ? std::numeric_limits<std::size_t>::max() : min_num_blocking_objects;
     for (const auto &grasp : misplaced_object.grasps_) {
+      if (min_num_object_blocking_objects == 0)
+        break;
+
       Eigen::Vector3d o = object_pose * grasp.translation();
 
       for (const auto &robot_pose : base_locations_) {
+        if (min_num_object_blocking_objects == 0)
+          break;
 
         if (!OnWorkspace(robot_pose, object_pose))
           continue;
@@ -1486,6 +1616,9 @@ void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state) const {
 
         std::size_t num_blocking_objects = 0;
         for (const auto &obstructing_object : objects_) {
+          if (num_blocking_objects >= min_num_object_blocking_objects)
+            break;
+
           if (!obstructing_object.second.moveable_ || state->GetAttatchedObject() == obstructing_object.second.name_ ||
               obstructing_object.second.name_ == misplaced_object.name_)
             continue;
@@ -1494,10 +1627,8 @@ void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state) const {
               state->GetObjectPoses().at(object_indices.at(obstructing_object.second.name_)).translation() - o;
           double dist = (w - std::min(std::max(0.0, w.dot(v) / v.squaredNorm()), 1.0) * v).norm();
 
-          if (dist < 0.2)
+          if (dist < blocking_object_distance_threshold_)
             num_blocking_objects++;
-          if (num_blocking_objects >= min_num_object_blocking_objects)
-            break;
         }
         if (num_blocking_objects < min_num_object_blocking_objects)
           min_num_object_blocking_objects = num_blocking_objects;
@@ -1505,18 +1636,22 @@ void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state) const {
     }
     if (min_num_object_blocking_objects < min_num_blocking_objects)
       min_num_blocking_objects = min_num_object_blocking_objects;
-    sum_min_blocking_objects += min_num_object_blocking_objects;
+    if (compute_s)
+      sum_min_blocking_objects += min_num_object_blocking_objects;
   }
   if (min_num_blocking_objects > objects_.size())
     min_num_blocking_objects = 0;
 
   state->SetMinObstructingObjects(min_num_blocking_objects);
-  state->SetSumMinObjectsObstructingMisplacedObjects(sum_min_blocking_objects);
+  if (compute_s)
+    state->SetSumMinObjectsObstructingMisplacedObjects(sum_min_blocking_objects);
 }
 
 void MoveitTampProblem::PrintStatistics() const {
   std::cout << "Move: " << num_move_base_ << " Pick: " << num_pick_ << " Place: " << num_place_
-            << "\nTotal IK calls: " << num_total_ik_calls_ << " Successful IK calls: " << num_successful_ik_calls_
+            << " Num total expansions: " << discovered_valid_actions_.size()
+            << " Num reused expansions: " << reused_valid_actions_ << "\nTotal IK calls: " << num_total_ik_calls_
+            << " Successful IK calls: " << num_successful_ik_calls_
             << "\nTotal motion plans: " << num_total_motion_plans_
             << " Successful motion plans: " << num_successful_motion_plans_ << std::endl;
 }

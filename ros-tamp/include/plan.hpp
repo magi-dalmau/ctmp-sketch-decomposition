@@ -15,6 +15,18 @@ public:
     std::reverse(costs.begin(), costs.end());
   }
 
+  void copy(Plan &plan) const {
+    plan.clear();
+
+    plan.states.push_back(states.at(0)->Clone());
+    for (std::size_t i = 0; i < actions.size(); ++i) {
+      plan.states.push_back(states.at(i + 1)->Clone());
+      plan.actions.push_back(actions.at(i)->Clone());
+      plan.costs.push_back(costs.at(i));
+    }
+    plan.total_cost = total_cost;
+  }
+
   virtual void append(const Plan &other) {
     for (std::size_t i = 0; i < other.actions.size(); ++i) {
       states.push_back(other.states.at(i + 1)->Clone());
