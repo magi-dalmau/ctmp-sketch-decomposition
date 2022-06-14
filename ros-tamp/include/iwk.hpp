@@ -51,6 +51,7 @@ protected:
     if (temp_open_hash_table_.empty()) {
       return BrFS::ExtractNode();
     } else {
+      std::cout<<"IWK special extracting node"<<std::endl;
       auto node_temp_open = temp_open_queue_.front();
 
       if (open_queue_.empty()) {

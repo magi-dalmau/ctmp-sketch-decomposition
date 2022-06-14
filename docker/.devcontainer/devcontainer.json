@@ -26,6 +26,9 @@
 		"redhat.vscode-yaml",
 		"vscode-icons-team.vscode-icons",
 		"redhat.vscode-xml",
-		"Gruntfuggly.todo-tree"
+		"Gruntfuggly.todo-tree",
+		"smilerobotics.urdf",
+		"ms-iot.vscode-ros",
+		"ms-vscode.cpptools-extension-pack"
 	]
 }

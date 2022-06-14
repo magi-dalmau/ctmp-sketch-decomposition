@@ -87,8 +87,11 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
                                                            Eigen::Quaterniond(0.906, 0.010, -0.226, 0.359),
                                                            Eigen::Vector3d(1., 1., 1.)); // TODO: set from roslaunch
   robot_workspace_center_translation_ = Eigen::Vector3d(0.093, 0.014, 1.070);            // TODO: set from roslaunch
-  robot_workspace_radius_ =
+  robot_workspace_max_radius_ =
       0.795; // TODO_worskpace radio coarse estimation, should be refined and setted form roslaunch
+  robot_workspace_min_radius_ =
+      0.395; // TODO_worskpace radio coarse estimation, should be refined and setted form roslaunch
+
   gripper_semiamplitude_ = 0.045;
 
   // Initialize moveit related objects
@@ -380,31 +383,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   }
 
   // SAMPLE AND POPULATE PLACEMENTS
-  std::size_t num_placements = nh_.param("num_placements", 100 - 2 * 14);
-
-  std::vector<double> weights(num_surfaces);
-  for (unsigned int k = 0; k < num_placements; ++k) {
-    unsigned int i = 0;
-    for (const auto &object : objects_) {
-      for (const auto &surface : object.second.surfaces_) {
-        weights.at(i++) = surface.area() / (1e-6 + double(surface.placements_.size()));
-      }
-    }
-
-    std::discrete_distribution<std::size_t> distribution(weights.begin(), weights.end());
-    unsigned int j = distribution(generator_);
-    i = 0;
-    for (auto &object : objects_) {
-
-      if (i + object.second.surfaces_.size() <= j) {
-        i += object.second.surfaces_.size();
-      } else {
-        object.second.surfaces_.at(j - i).sample();
-        break;
-      }
-    }
-  }
-  std::cout << "Loaded Placements" << std::endl;
+  LoadPlacements(num_surfaces);
 
   // Display placements
   display_placements_.header.frame_id = common_reference_;
@@ -420,99 +399,11 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   // Apply (syncronously) the created collision objects
   planning_scene_interface_.applyCollisionObjects(vector_collision_objects);
 
-  // Sample and store possible base locations
-  BaseStateSpace base_space;
-  base_space.x_min = nh_.param("location_space_x_min", -2.2);
-  base_space.y_min = nh_.param("location_space_y_min", -2.2);
-  base_space.x_max = nh_.param("location_space_x_max", 2.2);
-  base_space.y_max = nh_.param("location_space_y_max", 2.2);
-  double dist = nh_.param("average_sampling_distance_base_table", 0.3);
-  std::size_t locations_amount = nh_.param("locations_amount", 100);
-
-  std::map<std::string, std::vector<double>> object_to_origin_distances;
-  display_locations_.header.frame_id = common_reference_;
-  base_locations_.push_back(robot_origin_);
-  geometry_msgs::Pose robot_pose;
-  tf::poseEigenToMsg(robot_origin_, robot_pose);
-  display_locations_.poses.push_back(robot_pose);
-  while (base_locations_.size() < locations_amount) {
-
-    for (const auto &object : objects_) {
-      if (object.second.surfaces_.empty())
-        continue;
-      auto iter = object_to_origin_distances.find(object.first);
-
-      if (iter == object_to_origin_distances.end()) {
-        std::vector<double> max_limit_vector(object.second.surfaces_.size(), std::numeric_limits<double>::max());
-
-        // std::cout << "max_lim_vector size: " << max_limit_vector.size() << std::endl;
-        iter = (object_to_origin_distances.insert(std::make_pair(object.first, max_limit_vector))).first;
-      }
-      for (size_t k = 0; k < object.second.surfaces_.size(); k++) {
-        const auto &surface = object.second.surfaces_.at(k);
-        // std::cout << "num surfaces : " << object.second.surfaces_.size() << " distances : " << iter->second.size() <<
-        // std::endl;
-        double min_dist_surface_to_origin = iter->second.at(k);
-        std::vector<double> weights(4);
-        weights.at(0) = weights.at(2) = surface.max_(0) - surface.min_(0);
-        weights.at(1) = weights.at(3) = surface.max_(1) - surface.min_(1);
-
-        std::discrete_distribution<std::size_t> disc_distr(weights.begin(), weights.end());
-        std::uniform_real_distribution<double> unif_distr;
-        std::normal_distribution<double> normal_distr;
-        unsigned int i = disc_distr(generator_);
-        double u = unif_distr(generator_);
-        double z = normal_distr(generator_);
-
-        double x, y, yaw;
-        if (i == 0) {
-          x = surface.min_(0) * u + surface.max_(0) * (1 - u);
-          y = surface.max_(1) + dist + (0.5 * 0.1) * z;
-          yaw = 1.5 * M_PI + (0.5 * 30. / 180. * M_PI) * z;
-        } else if (i == 1) {
-          x = surface.max_(0) + (dist + (0.5 * 0.1) * z);
-          y = surface.min_(1) * u + surface.max_(1) * (1 - u);
-          yaw = M_PI + (0.5 * 30. / 180. * M_PI) * z;
-        } else if (i == 2) {
-          x = surface.min_(0) * u + surface.max_(0) * (1 - u);
-          y = surface.min_(1) - (dist + (0.5 * 0.1) * z);
-          yaw = 0.5 * M_PI + (0.5 * 30. / 180. * M_PI) * z;
-        } else {
-          x = surface.min_(0) - (dist + (0.5 * 0.1) * z);
-          y = surface.min_(1) * u + surface.max_(1) * (1 - u);
-          yaw = 0 + (0.5 * 30. / 180. * M_PI) * z;
-        }
-
-        Eigen::Affine3d affine = object.second.pose_ * surface.pose_ * Eigen::Translation3d(x, y, 0) *
-                                 Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
-        x = affine.translation()(0);
-        y = affine.translation()(1);
-        affine.translation()(2) = 0;
-        yaw = Eigen::AngleAxisd(affine.rotation()).angle();
-        if (base_space.isValid(x, y, yaw)) {
-          base_locations_.push_back(affine);
-          geometry_msgs::Pose pose;
-          tf::poseEigenToMsg(affine, pose);
-          display_locations_.poses.push_back(pose);
-          double dist_to_origin = (affine.translation() - robot_origin_.translation()).norm();
-          if (dist_to_origin < iter->second.at(k))
-            iter->second.at(k) = dist_to_origin;
-        }
-      }
-    }
-  }
+  LoadLocations();
   std::cout << "Loaded Locations" << std::endl;
 
   // compute the maximum allowed movement distance of the robot as the maximum of the shortest distances between
   // each surface and the robot origin
-  allowed_distance_between_connected_locations_ = 0;
-  for (const auto &object_distances : object_to_origin_distances) {
-    double max = *std::max_element(object_distances.second.begin(), object_distances.second.end());
-    if (max > allowed_distance_between_connected_locations_)
-      allowed_distance_between_connected_locations_ = max;
-  }
-  allowed_distance_between_connected_locations_ += 1e-3;
-  std::cout << "Computed max travelling distance " << allowed_distance_between_connected_locations_ << std::endl;
 
   PopulateLocationConnections();
 
@@ -562,6 +453,180 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   std::cout << "World loaded" << std::endl;
 }
 
+// void MoveitTampProblem::LoadLocations() {
+//   // Sample and store possible base locations
+//   BaseStateSpace base_space;
+//   base_space.x_min = nh_.param("location_space_x_min", -2.2);
+//   base_space.y_min = nh_.param("location_space_y_min", -2.2);
+//   base_space.x_max = nh_.param("location_space_x_max", 2.2);
+//   base_space.y_max = nh_.param("location_space_y_max", 2.2);
+//   double dist = nh_.param("average_sampling_distance_base_table", 0.3);
+//   std::size_t locations_amount = nh_.param("locations_amount", 100);
+
+//   std::map<std::string, std::vector<double>> object_to_origin_distances;
+//   display_locations_.header.frame_id = common_reference_;
+//   base_locations_.push_back(robot_origin_);
+//   geometry_msgs::Pose robot_pose;
+//   tf::poseEigenToMsg(robot_origin_, robot_pose);
+//   display_locations_.poses.push_back(robot_pose);
+//   while (base_locations_.size() < locations_amount) {
+
+//     for (const auto &object : objects_) {
+//       if (object.second.surfaces_.empty())
+//         continue;
+//       auto iter = object_to_origin_distances.find(object.first);
+
+//       if (iter == object_to_origin_distances.end()) {
+//         std::vector<double> max_limit_vector(object.second.surfaces_.size(), std::numeric_limits<double>::max());
+
+//         // std::cout << "max_lim_vector size: " << max_limit_vector.size() << std::endl;
+//         iter = (object_to_origin_distances.insert(std::make_pair(object.first, max_limit_vector))).first;
+//       }
+//       for (size_t k = 0; k < object.second.surfaces_.size(); k++) {
+//         const auto &surface = object.second.surfaces_.at(k);
+//         // std::cout << "num surfaces : " << object.second.surfaces_.size() << " distances : " << iter->second.size()
+//         <<
+//         // std::endl;
+//         double min_dist_surface_to_origin = iter->second.at(k);
+//         std::vector<double> weights(4);
+//         weights.at(0) = weights.at(2) = surface.max_(0) - surface.min_(0);
+//         weights.at(1) = weights.at(3) = surface.max_(1) - surface.min_(1);
+
+//         std::discrete_distribution<std::size_t> disc_distr(weights.begin(), weights.end());
+//         std::uniform_real_distribution<double> unif_distr;
+//         std::normal_distribution<double> normal_distr;
+//         unsigned int i = disc_distr(generator_);
+//         double u = unif_distr(generator_);
+//         double z = normal_distr(generator_);
+
+//         double x, y, yaw;
+//         if (i == 0) {
+//           x = surface.min_(0) * u + surface.max_(0) * (1 - u);
+//           y = surface.max_(1) + dist + (0.5 * 0.1) * z;
+//           yaw = 1.5 * M_PI + (0.5 * 30. / 180. * M_PI) * z;
+//         } else if (i == 1) {
+//           x = surface.max_(0) + (dist + (0.5 * 0.1) * z);
+//           y = surface.min_(1) * u + surface.max_(1) * (1 - u);
+//           yaw = M_PI + (0.5 * 30. / 180. * M_PI) * z;
+//         } else if (i == 2) {
+//           x = surface.min_(0) * u + surface.max_(0) * (1 - u);
+//           y = surface.min_(1) - (dist + (0.5 * 0.1) * z);
+//           yaw = 0.5 * M_PI + (0.5 * 30. / 180. * M_PI) * z;
+//         } else {
+//           x = surface.min_(0) - (dist + (0.5 * 0.1) * z);
+//           y = surface.min_(1) * u + surface.max_(1) * (1 - u);
+//           yaw = 0 + (0.5 * 30. / 180. * M_PI) * z;
+//         }
+
+//         Eigen::Affine3d affine = object.second.pose_ * surface.pose_ * Eigen::Translation3d(x, y, 0) *
+//                                  Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
+//         x = affine.translation()(0);
+//         y = affine.translation()(1);
+//         affine.translation()(2) = 0;
+//         yaw = Eigen::AngleAxisd(affine.rotation()).angle();
+//         if (base_space.isValid(x, y, yaw)) {
+//           base_locations_.push_back(affine);
+//           geometry_msgs::Pose pose;
+//           tf::poseEigenToMsg(affine, pose);
+//           display_locations_.poses.push_back(pose);
+//           double dist_to_origin = (affine.translation() - robot_origin_.translation()).norm();
+//           if (dist_to_origin < iter->second.at(k))
+//             iter->second.at(k) = dist_to_origin;
+//         }
+//       }
+//     }
+//   }
+//
+// allowed_distance_between_connected_locations_ = 0;
+// for (const auto &object_distances : object_to_origin_distances) {
+//   double max = *std::max_element(object_distances.second.begin(), object_distances.second.end());
+//   if (max > allowed_distance_between_connected_locations_)
+//     allowed_distance_between_connected_locations_ = max;
+// }
+// allowed_distance_between_connected_locations_ += 1e-3;
+// std::cout << "Computed max travelling distance " << allowed_distance_between_connected_locations_ << std::endl;
+// }
+
+void MoveitTampProblem::LoadLocations() {
+  // Sample and store possible base locations
+  BaseStateSpace base_space;
+  base_space.x_min = nh_.param("location_space_x_min", -2.2);
+  base_space.y_min = nh_.param("location_space_y_min", -2.2);
+  base_space.x_max = nh_.param("location_space_x_max", 2.2);
+  base_space.y_max = nh_.param("location_space_y_max", 2.2);
+
+  std::map<std::string, std::vector<double>> object_to_origin_distances;
+  display_locations_.header.frame_id = common_reference_;
+  base_locations_.push_back(robot_origin_);
+  geometry_msgs::Pose robot_pose;
+  tf::poseEigenToMsg(robot_origin_, robot_pose);
+  display_locations_.poses.push_back(robot_pose);
+  for (const auto &object : objects_) {
+    if (object.second.surfaces_.empty())
+      continue;
+    auto iter = object_to_origin_distances.find(object.first);
+
+    if (iter == object_to_origin_distances.end()) {
+      std::vector<double> max_limit_vector(object.second.surfaces_.size(), std::numeric_limits<double>::max());
+
+      // std::cout << "max_lim_vector size: " << max_limit_vector.size() << std::endl;
+      iter = (object_to_origin_distances.insert(std::make_pair(object.first, max_limit_vector))).first;
+    }
+
+    for (size_t k = 0; k < object.second.surfaces_.size(); k++) {
+      const auto &surface = object.second.surfaces_.at(k);
+
+      std::vector<Eigen::Affine3d> local_poses;
+      local_poses.push_back(Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)),
+                                                 surface.max_(1) + 0.1 + robot_workspace_min_radius_, 0) *
+                            Eigen::AngleAxisd(1.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      local_poses.push_back(
+          Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)), surface.max_(1) + 0.1 + 0.2, 0) *
+          Eigen::AngleAxisd(1.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      local_poses.push_back(Eigen::Translation3d(surface.max_(0) + 0.1 + robot_workspace_min_radius_,
+                                                 0.5 * (surface.min_(1) + surface.max_(1)), 0) *
+                            Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()));
+      local_poses.push_back(Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)),
+                                                 surface.min_(1) - 0.1 - robot_workspace_min_radius_, 0) *
+                            Eigen::AngleAxisd(0.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      local_poses.push_back(
+          Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)), surface.min_(1) - 0.1 - 0.2, 0) *
+          Eigen::AngleAxisd(0.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      local_poses.push_back(Eigen::Translation3d(surface.min_(0) - 0.1 - robot_workspace_min_radius_,
+                                                 0.5 * (surface.min_(1) + surface.max_(1)), 0) *
+                            Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()));
+
+      for (const auto &local_pose : local_poses) {
+        Eigen::Affine3d affine = object.second.pose_ * surface.pose_ * local_pose;
+        double x = affine.translation()(0);
+        double y = affine.translation()(1);
+        affine.translation()(2) = 0;
+        double yaw = Eigen::AngleAxisd(affine.rotation()).angle();
+        if (base_space.isValid(x, y, yaw)) {
+          base_locations_.push_back(affine);
+          geometry_msgs::Pose pose;
+          tf::poseEigenToMsg(affine, pose);
+          display_locations_.poses.push_back(pose);
+          double dist_to_origin = (affine.translation() - robot_origin_.translation()).norm();
+          if (dist_to_origin < iter->second.at(k))
+            iter->second.at(k) = dist_to_origin;
+        }
+      }
+    }
+  }
+
+  allowed_distance_between_connected_locations_ = 0;
+  for (const auto &object_distances : object_to_origin_distances) {
+    double max = *std::max_element(object_distances.second.begin(), object_distances.second.end());
+    if (max > allowed_distance_between_connected_locations_)
+      allowed_distance_between_connected_locations_ = max;
+  }
+  // allowed_distance_between_connected_locations_ += 1e-3;
+  allowed_distance_between_connected_locations_ += 2e-1;
+
+  std::cout << "Computed max travelling distance " << allowed_distance_between_connected_locations_ << std::endl;
+}
+
 void MoveitTampProblem::PopulateLocationConnections() {
 
   location_connections_.reserve(base_locations_.size());
@@ -583,6 +648,47 @@ void MoveitTampProblem::PopulateLocationConnections() {
 bool MoveitTampProblem::LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination) const {
   return Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
          allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_;
+}
+
+// void MoveitTampProblem::LoadPlacements(std::size_t num_surfaces) {
+//   std::size_t num_placements = nh_.param("num_placements", 100 - 2 * 14);
+
+//   std::vector<double> weights(num_surfaces);
+//   for (unsigned int k = 0; k < num_placements; ++k) {
+//     unsigned int i = 0;
+//     for (const auto &object : objects_) {
+//       for (const auto &surface : object.second.surfaces_) {
+//         weights.at(i++) = surface.area() / (1e-6 + double(surface.placements_.size()));
+//       }
+//     }
+
+//     std::discrete_distribution<std::size_t> distribution(weights.begin(), weights.end());
+//     unsigned int j = distribution(generator_);
+//     i = 0;
+//     for (auto &object : objects_) {
+
+//       if (i + object.second.surfaces_.size() <= j) {
+//         i += object.second.surfaces_.size();
+//       } else {
+//         object.second.surfaces_.at(j - i).sample();
+//         break;
+//       }
+//     }
+//   }
+//   std::cout << "Loaded Placements" << std::endl;
+// }
+
+void MoveitTampProblem::LoadPlacements(std::size_t num_surfaces) {
+  std::size_t num_placements = nh_.param("num_placements", 100);
+
+  for (auto &object : objects_) {
+    for (auto &surface : object.second.surfaces_) {
+      while (surface.placements_.size() * num_surfaces < num_placements) {
+        surface.sample();
+      }
+    }
+  }
+  std::cout << "Loaded Placements" << std::endl;
 }
 
 // Visualization methods
@@ -775,20 +881,82 @@ Eigen::Affine3d bezier(double u, std::vector<Eigen::Affine3d>::const_iterator be
 }
 bool MoveitTampProblem::PlanAndExecuteMoveGripperToNamedTarget(
     moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface, const std::string &named_target) {
-  gripper_move_group_interface.setStartStateToCurrentState();
-  auto named_target_res = gripper_move_group_interface.setNamedTarget(named_target);
-  if (named_target_res) {
-    auto result = gripper_move_group_interface.move();
-    if (result == moveit::core::MoveItErrorCode::SUCCESS) {
-      return true;
-    } else {
-      ROS_ERROR_STREAM("Failed to move gripper with error code: " << result);
-      return false;
-    }
+  //gripper_move_group_interface.setStartStateToCurrentState();
+
+  moveit_msgs::RobotTrajectory trajectory_close;
+  trajectory_close.joint_trajectory.header.stamp = ros::Time::now();
+  trajectory_close.joint_trajectory.joint_names.push_back("gripper_left_finger_joint");
+  trajectory_close.joint_trajectory.joint_names.push_back("gripper_right_finger_joint");
+  moveit_msgs::RobotTrajectory trajectory_open;
+  trajectory_open = trajectory_close;
+  trajectory_msgs::JointTrajectoryPoint init_point;
+  init_point.positions.push_back(0.045);
+  init_point.positions.push_back(0.045);
+  init_point.time_from_start.fromSec(0);
+  // init_point.velocities.push_back(0);
+  // init_point.velocities.push_back(0);
+  // init_point.accelerations.push_back(0);
+  // init_point.accelerations.push_back(0);
+  trajectory_close.joint_trajectory.points.push_back(init_point);
+  init_point.positions.clear();
+  init_point.positions.push_back(0.025);
+  init_point.positions.push_back(0.025);
+  trajectory_open.joint_trajectory.points.push_back(init_point);
+
+  // trajectory_msgs::JointTrajectoryPoint mid_point;
+  // mid_point.positions.push_back(0.035);
+  // mid_point.positions.push_back(0.035);
+  // mid_point.time_from_start.fromSec(0.5);
+  // mid_point.velocities.push_back(0.04);
+  // mid_point.velocities.push_back(0.04);
+  // mid_point.accelerations.push_back(0.02);
+  // mid_point.accelerations.push_back(0.02);
+
+  // trajectory_close.joint_trajectory.points.push_back(mid_point);
+  // trajectory_open.joint_trajectory.points.push_back(mid_point);
+
+  trajectory_msgs::JointTrajectoryPoint end_point;
+  end_point.positions.push_back(0.025);
+  end_point.positions.push_back(0.025);
+  end_point.time_from_start.fromSec(1);
+  // end_point.velocities.push_back(0);
+  // end_point.velocities.push_back(0);
+  // end_point.accelerations.push_back(0);
+  // end_point.accelerations.push_back(0);
+  trajectory_close.joint_trajectory.points.push_back(end_point);
+  end_point.positions.clear();
+  end_point.positions.push_back(0.045);
+  end_point.positions.push_back(0.045);
+  trajectory_open.joint_trajectory.points.push_back(end_point);
+  moveit::core::MoveItErrorCode result;
+  if (named_target == "grasp") {
+    result = gripper_move_group_interface.execute(trajectory_close);
   } else {
-    ROS_ERROR_STREAM("Invalid named target for gripper group: " << named_target);
+    result = gripper_move_group_interface.execute(trajectory_open);
+  }
+
+  if (result == moveit::core::MoveItErrorCode::SUCCESS) {
+    return true;
+  } else {
+    ROS_ERROR_STREAM("Failed to move gripper with error code: " << result);
     return false;
   }
+
+  // gripper_move_group_interface.setStartStateToCurrentState();
+  // auto named_target_res = gripper_move_group_interface.setNamedTarget(named_target);
+  // if (named_target_res) {
+
+  //   gripper_move_group_interface.execute() auto result = gripper_move_group_interface.move();
+  //   if (result == moveit::core::MoveItErrorCode::SUCCESS) {
+  //     return true;
+  //   } else {
+  //     ROS_ERROR_STREAM("Failed to move gripper with error code: " << result);
+  //     return false;
+  //   }
+  // } else {
+  //   ROS_ERROR_STREAM("Invalid named target for gripper group: " << named_target);
+  //   return false;
+  // }
 }
 bool MoveitTampProblem::PlanAndExecuteCloseGripper(
     moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface) {
@@ -805,9 +973,9 @@ bool MoveitTampProblem::ExecutePlan(const Plan &plan) {
   moveit::planning_interface::MoveGroupInterface gripper_move_group_interface("gripper");
   gripper_move_group_interface.setMaxVelocityScalingFactor(1);
   gripper_move_group_interface.setMaxAccelerationScalingFactor(1);
-  if (!PlanAndExecuteOpenGripper(gripper_move_group_interface)) {
-    return false;
-  }
+  // if (!PlanAndExecuteOpenGripper(gripper_move_group_interface)) {
+  //   return false;
+  // }
   robot_pose_ = robot_origin_;
   std::size_t j = 0;
   for (std::size_t i = 0; i < objects_.size(); ++i) {
@@ -995,7 +1163,7 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
     s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
     if (s < start_state_sketch_features_.s) {
       std::cout << "PICK_OBSTRUCTING_OBJECT SUBGOAL FOUND" << std::endl;
-      std::cout << "H is now: " << H << "and s decremented from " << start_state_sketch_features_.s << " to " << s
+      std::cout << "H is now: " << H << " and s decremented from " << start_state_sketch_features_.s << " to " << s
                 << std::endl;
       delete state_copy;
       return true;
@@ -1146,8 +1314,11 @@ bool MoveitTampProblem::DetachCollisionObject(const std::string &obj_id,
   // TODO Verificar que cal canviar el frame reference? un altre cop a world (related amb el todo de attach)
 }
 bool MoveitTampProblem::OnWorkspace(const Eigen::Affine3d &robot_base_pose, const Eigen::Affine3d &target_pose) const {
-  return OnCircle(robot_workspace_center_translation_, robot_workspace_radius_,
-                  (robot_base_pose.inverse() * target_pose).translation());
+  return (OnCircle(robot_workspace_center_translation_, robot_workspace_max_radius_,
+                   (robot_base_pose.inverse() * target_pose).translation()) &&
+          !OnCircle(robot_workspace_center_translation_, robot_workspace_min_radius_,
+                    (robot_base_pose.inverse() * target_pose).translation()));
+  // TODO: Optimize OnWorkspace combining in a single function OnAnnulus
 }
 bool MoveitTampProblem::OnCircle(const Eigen::Vector3d &origin, const double radius,
                                  const Eigen::Vector3d &target) const {
@@ -1183,6 +1354,7 @@ Cases:
   auto actions_iter = discovered_valid_actions_.find(casted_state->GetHash());
   if (actions_iter != discovered_valid_actions_.end()) {
     reused_valid_actions_++;
+    std::cout << "Reusing valid actions with lenght: " << actions_iter->second.size() << std::endl;
     return actions_iter->second;
   }
 

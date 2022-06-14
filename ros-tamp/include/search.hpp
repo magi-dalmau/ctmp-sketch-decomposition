@@ -88,13 +88,14 @@ protected:
         num_duplicates_closed_++;
         // std::cout << *successor->GetState() << " already in close" << std::endl;
         auto rewired = duplicate_close->AddParent(parent, action->Clone(), action_cost);
-        ManageDuplicateInOpen(duplicate_close);
+        ManageDuplicateInClose(duplicate_close);
         parent->AddSuccessor(duplicate_close);
         delete successor;
         if (rewired) {
           num_rewired_++;
           auto connected_goal = duplicate_close->GetConnectedGoal();
           if (connected_goal) {
+            std::cout<<"Fond a connected to goal node"<<std::endl;
             std::cout << *duplicate_close->GetState() << " connected to goal " << *connected_goal->GetState()
                       << std::endl;
           }

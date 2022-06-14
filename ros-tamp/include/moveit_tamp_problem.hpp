@@ -50,6 +50,8 @@ protected:
   // METHODS
   // initializations
   void LoadWorld(const std::string &filename);
+  void LoadLocations();
+  void LoadPlacements(std::size_t num_surfaces);
 
   // // Problem actions related
   // MoveitTampState ApplyPlaceAction(const MoveitTampState &current_state, const std::string &obj_id,
@@ -186,7 +188,7 @@ protected:
 
   Eigen::Vector3d robot_workspace_center_translation_;
 
-  double robot_workspace_radius_;
+  double robot_workspace_max_radius_, robot_workspace_min_radius_;
   double gripper_semiamplitude_;
 
   std::string robot_root_tf_;
