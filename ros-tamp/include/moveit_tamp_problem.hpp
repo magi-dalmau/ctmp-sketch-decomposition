@@ -1,3 +1,4 @@
+#pragma once
 // ros_tamp
 #include <action_move_base.hpp>
 #include <action_pick.hpp>
@@ -26,11 +27,15 @@
 #include <iostream>
 #include <random>
 #include <unordered_map>
+#include <hasher.hpp>
+
 
 class MoveitTampProblem : public Problem {
 public:
   MoveitTampProblem(const std::string &filename, const std::string &planning_group, ros::NodeHandle *nodehandle);
   virtual State *const Start() const override;
+  void AdaptativeSampling(const State *const state);
+
   virtual bool IsGoal(State const *const state) const override;
   virtual ~MoveitTampProblem() override;
 
@@ -45,13 +50,16 @@ public:
   virtual void PrintStatistics() const override;
 
   virtual bool ExecutePlan(const Plan &plan) override;
+  // visualization
+  void Publish(const ros::TimerEvent &event);
 
 protected:
   // METHODS
   // initializations
-  void LoadWorld(const std::string &filename);
+  virtual void LoadWorld(const std::string &filename);
   void LoadLocations();
   void LoadPlacements(std::size_t num_surfaces);
+  void AddCurrentObjectsToPlacements(const std::vector<Eigen::Affine3d> &object_poses);
 
   // // Problem actions related
   // MoveitTampState ApplyPlaceAction(const MoveitTampState &current_state, const std::string &obj_id,
@@ -67,10 +75,10 @@ protected:
   //   DetachCollisionObject(obj_id, final_pose);
   // }
   bool SetActiveSketchRule(const State *const state) override;
-  void ComputeStateSketchFeatures(State *const state) const;
-  void SetMisplacedObjects(MoveitTampState *const state) const;
-  bool Misplaced(const std::string &name, const Eigen::Affine3d &pose) const;
-  void SetBlockingObjects(MoveitTampState *const state,bool compute_s = false) const;
+  virtual void ComputeStateSketchFeatures(State *const state);
+  virtual void SetMisplacedObjects(MoveitTampState *const state) const;
+  virtual bool Misplaced(const std::string &name, const Eigen::Affine3d &pose) const = 0;
+  virtual void SetBlockingObjects(MoveitTampState *const state, bool compute_s = false) const = 0;
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
@@ -113,8 +121,7 @@ protected:
   void ComputeHashes(const Eigen::Affine3d &base_pose, const std::vector<Eigen::Affine3d> &object_poses,
                      const std::string &attached_object, std::size_t &state_hash, std::size_t &state_local_hash,
                      std::vector<std::size_t> &on_workspace_objects, std::vector<std::size_t> &features_hashes) const;
-  // visualization
-  void Publish(const ros::TimerEvent &event);
+
 
   // Test only
   void AddTestCollision(); // TEST ONLY
@@ -145,6 +152,7 @@ protected:
     std::vector<Eigen::Affine3d> placements_;
     double area() const;
     bool on(const Eigen::Vector3d &position) const;
+    void sample(std::size_t num_samples);
     void sample();
   };
 
@@ -161,6 +169,8 @@ protected:
 
   // OBJECTS
   ros::NodeHandle nh_;
+  Hasher hasher_;
+  bool reuse_expansions_;
   ros::Publisher pub_placements_;
   ros::Publisher pub_locations_;
   ros::Publisher pub_objects_;
@@ -175,10 +185,11 @@ protected:
   std::map<std::string, Object> objects_;
   std::vector<std::string> object_names_;
   std::map<std::string, std::size_t> object_indices;
+  std::vector<std::string> supporting_object_names;
   std::vector<Eigen::Affine3d> base_locations_;
   std::unordered_map<std::size_t, std::vector<std::size_t>> location_connections_;
   // TODO: Check all the base locations are connected if not, more sampling needed
-
+  std::size_t placements_per_table_adaptative_sampling_;
   double allowed_distance_between_connected_locations_;
   Eigen::Affine3d robot_origin_;
   std::string robot_grasping_link_;
@@ -207,7 +218,8 @@ protected:
   double blocking_object_distance_threshold_;
 
   std::unordered_map<std::size_t, std::vector<Action *>> discovered_valid_actions_;
-
+  std::map<std::string, Eigen::Vector3d> goal_positions_;
+  double goal_tolerance_radius_;
   // Statistics
   std::size_t num_move_base_, num_pick_, num_place_, num_total_ik_calls_, num_successful_ik_calls_,
       num_total_motion_plans_, num_successful_motion_plans_, reused_valid_actions_;

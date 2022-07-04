@@ -27,6 +27,8 @@ public:
 
 protected:
   virtual void Clear() override {
+    num_manage_orphans_=0;
+    num_susbstitutes_=0;
     BrFS::Clear();
     temp_open_queue_ = std::queue<Node *>();
     // TODO(magi.dalmau) solve
@@ -51,7 +53,7 @@ protected:
     if (temp_open_hash_table_.empty()) {
       return BrFS::ExtractNode();
     } else {
-      std::cout<<"IWK special extracting node"<<std::endl;
+      std::cout << "IWK special extracting node" << std::endl;
       auto node_temp_open = temp_open_queue_.front();
 
       if (open_queue_.empty()) {
@@ -192,26 +194,40 @@ protected:
   }
 
   virtual void ManageOrphan(Node *const node) override {
+    num_manage_orphans_++;
     std::cout << "ManageOrphan IWk" << std::endl;
 
     std::vector<std::set<size_t>> affected_hashes;
     affected_hashes.resize(k_);
     RepairNoveltyTable(node, affected_hashes);
+    std::cout << "Reparation finished" << std::endl;
     for (size_t i = 1; i <= k_; i++) {
+      std::cout << "The number of affected hashes is: " << affected_hashes.at(i - 1).size() << std::endl;
       for (const auto hash : affected_hashes.at(i - 1)) {
-        auto substitute = novelty_hash_tables_.at(i - 1).at(hash).at(0);
-        if (FindNodeInClose(substitute)) {
-          continue;
-        }
-        if (FindNodeInOpen(substitute)) {
-          continue;
-        }
-        auto duplicate_pruned_iter = pruned_hash_table_.find(node->GetState()->GetHash());
-        if (duplicate_pruned_iter != pruned_hash_table_.end()) {
-          AddToTempOpen(duplicate_pruned_iter->second);
-          pruned_hash_table_.erase(duplicate_pruned_iter);
+        std::cout << "Hash: " << hash << std::endl;
+        auto iter = novelty_hash_tables_.at(i - 1).find(hash);
+        if (iter != novelty_hash_tables_.at(i - 1).end() && !iter->second.empty()) {
+          auto substitute = iter->second.at(0);
+          if (FindNodeInClose(substitute)) {
+            std::cout << "orphan substitute already in close" << std::endl;
+            continue;
+          }
+          if (FindNodeInOpen(substitute)) {
+            std::cout << "orphan substitute already in open" << std::endl;
+
+            continue;
+          }
+          auto duplicate_pruned_iter = pruned_hash_table_.find(node->GetState()->GetHash());
+          if (duplicate_pruned_iter != pruned_hash_table_.end()) {
+            num_susbstitutes_++;
+            AddToTempOpen(duplicate_pruned_iter->second);
+            pruned_hash_table_.erase(duplicate_pruned_iter);
+          } else {
+            std::cout << "ERROR: Substitute node " << substitute->GetState()->GetHash() << " not found in any container"
+                      << std::endl;
+          }
         } else {
-          std::cout << "ERROR: Substitute node not found in any container" << std::endl;
+          continue;
         }
       }
     }
@@ -226,14 +242,19 @@ protected:
   };
 
   virtual void ManagePruned(Node *const node) override {
-    // std::cout << "ManagePruned IWk" << std::endl;
+    std::cout << "ManagePruned IWk" << std::endl;
 
     auto inserted = pruned_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node)).second;
     assert(inserted);
     assert(pruned_hash_table_.size() == num_pruned_);
   }
+  virtual void printStatistics() const override{
+    std::cout<<"IKW statistics: "<<"managed orphans: "<<num_manage_orphans_<<" num substitutes: "<<num_susbstitutes_<<std::endl;
+    Search::printStatistics();
+  }
 
-  template <class T> inline void CombineHashVector(std::size_t &s, const std::vector<T> &vector) {
+      template <class T>
+      inline void CombineHashVector(std::size_t &s, const std::vector<T> &vector) {
     for (const auto v : vector) {
       hash_combine<T>(s, v);
     }
@@ -259,4 +280,5 @@ protected:
   std::unordered_map<std::size_t, Node *const> pruned_hash_table_;
   std::queue<Node *> temp_open_queue_;
   std::unordered_map<std::size_t, Node *const> temp_open_hash_table_;
+  std::size_t num_manage_orphans_, num_susbstitutes_;
 };

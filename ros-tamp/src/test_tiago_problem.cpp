@@ -1,7 +1,8 @@
 #include <brfs.hpp>
+#include <cluttered_tamp_problem.hpp>
+#include <non_monotonic_tamp_problem.hpp>
 #include <iostream>
 #include <iwk.hpp>
-#include <moveit_tamp_problem.hpp>
 #include <random>
 #include <ros/ros.h>
 #include <siwr.hpp>
@@ -19,11 +20,24 @@ int main(int argc, char **argv) {
   std::string planning_group = nh.param("planning_group", std::string("arm_torso"));
   std::cout << "The problem will be initialized" << std::endl;
   std::string problem_name = nh.param("problem_name", std::string("pb_3"));
-  const std::string filename =
-      "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_3_sorting_objects/problem_definitions/" +
-      problem_name + ".xml";
 
-  auto problem = new MoveitTampProblem(filename, planning_group, &nh);
+  Problem *problem;
+  if (problem_name.find("3") != std::string::npos) {
+    const std::string filename =
+        "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_3_sorting_objects/problem_definitions/" +
+        problem_name + ".xml";
+    problem = new ClutteredTampProblem(filename, planning_group, &nh);
+
+  } else if (problem_name.find("4") != std::string::npos) {
+    std::cout<<"SELECTED PROBLEM TYPE 4"<<std::endl;
+    const std::string filename =
+        "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_4_non_monotonic/problem_definitions/" +
+        problem_name + ".xml";
+    problem = new NonMonotonicTampProblem(filename, planning_group, &nh);
+  } else {
+    std::cout << "Unknown  problem type for name: " << problem_name << std::endl;
+    return 0;
+  }
 
   std::cout << "My problem is:\n" << *problem << std::endl;
 
@@ -64,7 +78,8 @@ int main(int argc, char **argv) {
   if (siwr->Solve(plan, lazy)) {
     auto solved_time = ros::Time::now();
     std::cout << "Found solution in " << ((solved_time - init_time).toSec()) / 60.0 << " min" << std::endl;
-    std::cout << plan << std::endl;
+    //std::cout << plan << std::endl;
+    std::cout << "Total cost is " << plan.total_cost << std::endl;
     while (ros::ok()) {
       problem->ExecutePlan(plan);
     }

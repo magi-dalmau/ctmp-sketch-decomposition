@@ -17,19 +17,19 @@
 #include <unordered_set>
 #include <vector>
 
-template <class T> inline void hash_combine(std::size_t &s, const T &v) {
-  std::hash<T> h;
-  s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
-};
+// template <class T> inline void hash_combine(std::size_t &s, const T &v) {
+//   std::hash<T> h;
+//   s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+// };
 
-void CombineHashPose(std::size_t &hash, const Eigen::Affine3d &pose) {
-  const auto matrix = 1000.0 * pose.matrix();
-  for (unsigned int i = 0; i < 3; ++i) {
-    for (unsigned int j = i; j < 4; ++j) {
-      hash_combine<double>(hash, trunc(matrix(i, j)));
-    }
-  }
-}
+// void CombineHashPose(std::size_t &hash, const Eigen::Affine3d &pose) {
+//   const auto matrix = 1000.0 * pose.matrix();
+//   for (unsigned int i = 0; i < 3; ++i) {
+//     for (unsigned int j = i; j < 4; ++j) {
+//       hash_combine<double>(hash, trunc(matrix(i, j)));
+//     }
+//   }
+// }
 
 // void CombineHashTranslation(std::size_t &hash, const Eigen::Vector3d &translation) {
 //   for (size_t i = 0; i < 3; i++) {
@@ -45,11 +45,11 @@ void CombineHashPose(std::size_t &hash, const Eigen::Affine3d &pose) {
 //   }
 // }
 
-template <class T> inline void CombineHashVector(std::size_t &s, const std::vector<T> &vector) {
-  for (const auto v : vector) {
-    hash_combine<T>(s, v);
-  }
-};
+// template <class T> inline void CombineHashVector(std::size_t &s, const std::vector<T> &vector) {
+//   for (const auto v : vector) {
+//     hash_combine<T>(s, v);
+//   }
+// };
 
 // MAIN CLASS
 // Constructor related methods
@@ -70,21 +70,32 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   num_total_ik_calls_ = 0;
   num_successful_ik_calls_ = 0;
   reused_valid_actions_ = 0;
+  num_total_motion_plans_ = 0;
+  num_successful_motion_plans_ = 0;
   // PARAMS
+  reuse_expansions_ = nh_.param("reuse_expansions", false);
   blocking_object_distance_threshold_ = nh_.param("blocking_object_distance_threshold", 0.2);
+  goal_tolerance_radius_ = nh_.param("goal_tolerance_radius_", 0.005);
   ik_service_name_ = nh_.param("ik_service_name", std::string("/compute_ik"));
   common_reference_ = nh_.param("common_reference", std::string("world"));
   tf_broadcaster_.sendTransform(tf::StampedTransform(tf::Transform(), ros::Time::now(), common_reference_,
                                                      move_group_interface_.getPlanningFrame()));
   robot_home_joint_config_.name = move_group_interface_.getJointNames();
+  // robot_home_joint_config_.position =
+  //     std::vector<double>{0.349908365757701,  0.08886820063711626, 0.035885547316525906, -2.799176661809888,
+  //                         1.5379210924065916, 0.8614694762778718,  -0.8948474111586892,  -2.010910761039485};
   robot_home_joint_config_.position =
       std::vector<double>{0.349908365757701,  0.08886820063711626, 0.035885547316525906, -2.799176661809888,
-                          1.5379210924065916, 0.8614694762778718,  -0.8948474111586892,  -2.010910761039485};
+                          1.5379210924065916, 0.8614694762778718,  -0.8948474111586892,  1.0764951904142515};
   // Home position definied in tiago_pal-gripper_schunk-ft.srdf and set
   // as initial in fake_controllers_pal-gripper_schunk-ft.yaml  (also gripper set to open in the same files)
 
+  // gripper_home_wrt_robot_base.fromPositionOrientationScale(Eigen::Vector3d(0.295, -0.398, 1.400),
+  //                                                          Eigen::Quaterniond(0.906, 0.010, -0.226, 0.359),
+  //                                                          Eigen::Vector3d(1., 1., 1.)); // TODO: set from roslaunch
+
   gripper_home_wrt_robot_base.fromPositionOrientationScale(Eigen::Vector3d(0.295, -0.398, 1.400),
-                                                           Eigen::Quaterniond(0.906, 0.010, -0.226, 0.359),
+                                                           Eigen::Quaterniond(0.905, 0.353, 0.236, 0.015),
                                                            Eigen::Vector3d(1., 1., 1.)); // TODO: set from roslaunch
   robot_workspace_center_translation_ = Eigen::Vector3d(0.093, 0.014, 1.070);            // TODO: set from roslaunch
   robot_workspace_max_radius_ =
@@ -92,7 +103,9 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   robot_workspace_min_radius_ =
       0.395; // TODO_worskpace radio coarse estimation, should be refined and setted form roslaunch
 
-  gripper_semiamplitude_ = 0.045;
+  gripper_semiamplitude_ = nh_.param("gripper_semiamplitude", 0.045);
+
+  placements_per_table_adaptative_sampling_ = nh_.param("placements_per_table_adaptative_sampling_", 3);
 
   // Initialize moveit related objects
   group_joint_names_ = move_group_interface_.getJointNames();
@@ -113,15 +126,14 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   ik_service_client_ = nh_.serviceClient<moveit_msgs::GetPositionIK>(
       ik_service_name_, true); // Client with persistent connection due to the elevated number of requests
   InitIKRequest();
-
-  // Load world
-  LoadWorld(filename);
+  // TODO publihsing rate by param
+  display_timer_ = nh_.createTimer(ros::Duration(0.02), &MoveitTampProblem::Publish, this);
 
   // TODO set by parameters
   move_group_interface_.setMaxVelocityScalingFactor(1.);
   move_group_interface_.setMaxAccelerationScalingFactor(1.);
-
-  ROS_DEBUG("PROBLEM INITIALIZED");
+  // LOAD WORLD PASSAT ALS FILLS
+  //  ROS_DEBUG("PROBLEM INITIALIZED");
 }
 
 MoveitTampProblem::~MoveitTampProblem() {
@@ -221,8 +233,52 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   {
     Object object;
     object.name_ = obj->FirstChildElement("name")->GetText();
-    object.mesh_ = obj->FirstChildElement("geom")->GetText();
     object.pose_ = string2pose(obj->FirstChildElement("pose")->GetText());
+    std::cout << "Checking name: " << object.name_ << std::endl;
+    if (object.name_.find("target") != std::string::npos) {
+      goal_positions_.insert(std::make_pair(object.name_, object.pose_ * Eigen::Vector3d(0, 0, 0.001)));
+
+      visualization_msgs::Marker display_object;
+      display_object.header.frame_id = common_reference_;
+      display_object.ns = "non-moveable_objects";
+      display_object.id = display_objects_.markers.size();
+      display_object.type = visualization_msgs::Marker::CYLINDER;
+      display_object.scale.x = 0.045;
+      display_object.scale.y = 0.045;
+      display_object.scale.z = 0.0001;
+
+      // TODO #FUTURE MINOR:(magi.dalmau) solve color problem definition in files
+      display_object.action = visualization_msgs::Marker::ADD;
+      tf::poseEigenToMsg(object.pose_, display_object.pose);
+      display_object.frame_locked = true;
+
+      if (object.name_.find("red") != std::string::npos) {
+        display_object.color.r = 1;
+        display_object.color.g = 0;
+        display_object.color.b = 0;
+        display_object.mesh_use_embedded_materials = false;
+      } else if (object.name_.find("green") != std::string::npos) {
+        display_object.color.r = 0;
+        display_object.color.g = 1;
+        display_object.color.b = 0;
+        display_object.mesh_use_embedded_materials = false;
+      } else if (object.name_.find("blue") != std::string::npos) {
+        display_object.color.r = 0;
+        display_object.color.g = 0;
+        display_object.color.b = 1;
+        display_object.mesh_use_embedded_materials = false;
+      } else {
+        display_object.color.r = 0.5;
+        display_object.color.g = 0.5;
+        display_object.color.b = 0.5;
+        display_object.mesh_use_embedded_materials = false;
+      }
+      display_object.color.a = 1;
+      display_objects_.markers.push_back(display_object);
+
+      continue;
+    }
+    object.mesh_ = obj->FirstChildElement("geom")->GetText();
     object.moveable_ = string2bool(obj->FirstChildElement("moveable")->GetText());
     double surface_offset = 0;
     if (object.moveable_) {
@@ -237,7 +293,9 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
       const double y_min = std::stod(sssp->FirstChildElement("ymin")->GetText());
       const double y_max = std::stod(sssp->FirstChildElement("ymax")->GetText());
       const double z = std::stod(sssp->FirstChildElement("zmin")->GetText());
-
+      if (object.surfaces_.empty()) {
+        supporting_object_names.push_back(object.name_);
+      }
       object.surfaces_.push_back(SupportingSurface(x_min, x_max, y_min, y_max,
                                                    Eigen::Affine3d(Eigen::Translation3d(0, 0, z + surface_offset))));
 
@@ -425,7 +483,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   display_location_connections.color.a = 1;
   for (std::size_t i = 0; i < base_locations_.size(); ++i) {
     std::size_t hash = 0;
-    CombineHashPose(hash, base_locations_.at(i));
+    hasher_.CombineHashPose(hash, base_locations_.at(i));
     auto connections = location_connections_.find(hash);
     if (connections != location_connections_.end()) {
       geometry_msgs::Point start;
@@ -447,10 +505,27 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   // POPULATE ROBOT STATE
   display_robot_state_.state.joint_state = robot_home_joint_config_;
 
-  // TODO publihsing rate by param
-  display_timer_ = nh_.createTimer(ros::Duration(0.02), &MoveitTampProblem::Publish, this);
-
   std::cout << "World loaded" << std::endl;
+}
+
+void MoveitTampProblem::AddCurrentObjectsToPlacements(const std::vector<Eigen::Affine3d> &object_poses) {
+  for (const auto &pose : object_poses) {
+    for (const auto &name : supporting_object_names) {
+      auto supporting_obj = objects_.find(name);
+      if (supporting_obj != objects_.end()) {
+        bool found = false;
+        for (auto &surface : supporting_obj->second.surfaces_) {
+          if (surface.on(supporting_obj->second.pose_.inverse() * pose.translation())) {
+            surface.placements_.push_back(supporting_obj->second.pose_.inverse() * pose);
+            found = true;
+          }
+        }
+        if (found) {
+          break;
+        }
+      }
+    }
+  }
 }
 
 // void MoveitTampProblem::LoadLocations() {
@@ -484,7 +559,8 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
 //       }
 //       for (size_t k = 0; k < object.second.surfaces_.size(); k++) {
 //         const auto &surface = object.second.surfaces_.at(k);
-//         // std::cout << "num surfaces : " << object.second.surfaces_.size() << " distances : " << iter->second.size()
+//         // std::cout << "num surfaces : " << object.second.surfaces_.size() << " distances : " <<
+//         iter->second.size()
 //         <<
 //         // std::endl;
 //         double min_dist_surface_to_origin = iter->second.at(k);
@@ -623,6 +699,12 @@ void MoveitTampProblem::LoadLocations() {
   }
   // allowed_distance_between_connected_locations_ += 1e-3;
   allowed_distance_between_connected_locations_ += 2e-1;
+  // TODO: provisional min allowd distance thresshold
+
+  allowed_distance_between_connected_locations_ =
+      (allowed_distance_between_connected_locations_ > nh_.param("min_base_allowed_distance", 1.5))
+          ? allowed_distance_between_connected_locations_
+          : nh_.param("min_base_allowed_distance", 1.5);
 
   std::cout << "Computed max travelling distance " << allowed_distance_between_connected_locations_ << std::endl;
 }
@@ -640,14 +722,21 @@ void MoveitTampProblem::PopulateLocationConnections() {
       }
     }
     std::size_t hash = 0;
-    CombineHashPose(hash, base_locations_.at(i));
+    hasher_.CombineHashPose(hash, base_locations_.at(i));
     location_connections_.insert(std::make_pair(hash, connections));
   }
 }
 
 bool MoveitTampProblem::LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination) const {
-  return Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
-         allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_;
+  // return Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
+  //        allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_;
+  // TODO: provional check to avoid wrong connections side vs side table bases
+  double angle_diff =
+      acos(cos((destination.rotation().eulerAngles(0, 1, 2)[2] - origin.rotation().eulerAngles(0, 1, 2)[2])));
+
+  return (Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
+          allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_) &&
+         (fabs(angle_diff - M_PI) > 1e-3);
 }
 
 // void MoveitTampProblem::LoadPlacements(std::size_t num_surfaces) {
@@ -689,6 +778,77 @@ void MoveitTampProblem::LoadPlacements(std::size_t num_surfaces) {
     }
   }
   std::cout << "Loaded Placements" << std::endl;
+}
+
+void MoveitTampProblem::AdaptativeSampling(const State *const state) {
+  // Clear
+  for (const auto &name : supporting_object_names) {
+    auto supporting_obj = objects_.find(name);
+    if (supporting_obj != objects_.end()) {
+      for (auto &surface : supporting_obj->second.surfaces_) {
+        surface.placements_.clear();
+      }
+    }
+  }
+
+  auto casted_state = dynamic_cast<const MoveitTampState *>(state);
+  AddCurrentObjectsToPlacements(casted_state->GetObjectPoses());
+
+  // Add Non-Occupied target poses
+  for (const auto &target_pose : goal_positions_) {
+    bool surface_found = false;
+    for (const auto &name : supporting_object_names) {
+      if (surface_found)
+        break;
+      auto supporting_obj = objects_.find(name);
+      if (supporting_obj != objects_.end()) {
+        for (auto &surface : supporting_obj->second.surfaces_) {
+          if (surface_found)
+            break;
+          if (surface.on(supporting_obj->second.pose_.inverse() * target_pose.second)) {
+            surface_found = true;
+
+            bool placement_found = false;
+            for (const auto &placement : surface.placements_) {
+              if (placement_found)
+                break;
+              if (OnCircle(target_pose.second, goal_tolerance_radius_,
+                           supporting_obj->second.pose_ * placement.translation())) {
+                placement_found = true;
+              }
+            }
+            if (!placement_found) {
+              surface.placements_.push_back(supporting_obj->second.pose_.inverse() *
+                                            Eigen::Affine3d(Eigen::Translation3d(target_pose.second)));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (const auto &name : supporting_object_names) {
+    auto supporting_obj = objects_.find(name);
+    if (supporting_obj != objects_.end()) {
+      for (auto &surface : supporting_obj->second.surfaces_) {
+        surface.sample(placements_per_table_adaptative_sampling_);
+      }
+    }
+  }
+
+  display_placements_.poses.clear();
+  for (const auto &name : supporting_object_names) {
+    auto supporting_obj = objects_.find(name);
+    if (supporting_obj != objects_.end()) {
+      for (const auto &surface : supporting_obj->second.surfaces_) {
+        for (const auto &placement : surface.placements_) {
+          geometry_msgs::Pose pose;
+          tf::poseEigenToMsg(supporting_obj->second.pose_ * placement, pose);
+          display_placements_.poses.push_back(pose);
+        }
+      }
+    }
+  }
 }
 
 // Visualization methods
@@ -841,10 +1001,16 @@ bool MoveitTampProblem::PlanToJointTarget(const moveit_msgs::RobotState::_joint_
     // move_group_interface_.setStartState(robot_start_state);
     auto current = move_group_interface_.getCurrentState();
     current->setJointGroupPositions("arm_torso", robot_start_state.joint_state.position);
+
     move_group_interface_.setStartState(*current);
+
+    // prova:
+    //  move_group_interface_.setStartStateToCurrentState();
+    //  move_group_interface_.setStartState(robot_start_state);
 
     // moveit::core::robotStateToRobotStateMsg(*current, display_robot_state_.state);
   }
+
   // std::string x;
   // std::cout << "Start" << std::endl;
   // std::cin >> x;
@@ -881,7 +1047,7 @@ Eigen::Affine3d bezier(double u, std::vector<Eigen::Affine3d>::const_iterator be
 }
 bool MoveitTampProblem::PlanAndExecuteMoveGripperToNamedTarget(
     moveit::planning_interface::MoveGroupInterface &gripper_move_group_interface, const std::string &named_target) {
-  //gripper_move_group_interface.setStartStateToCurrentState();
+  // gripper_move_group_interface.setStartStateToCurrentState();
 
   moveit_msgs::RobotTrajectory trajectory_close;
   trajectory_close.joint_trajectory.header.stamp = ros::Time::now();
@@ -1105,13 +1271,12 @@ bool MoveitTampProblem::ExecutePlan(const moveit::planning_interface::MoveGroupI
 //   return true;
 // }
 
-void MoveitTampProblem::ComputeStateSketchFeatures(State *const state) const {
+void MoveitTampProblem::ComputeStateSketchFeatures(State *const state) {
   // compute state features
   auto casted_state = dynamic_cast<MoveitTampState *>(state);
   SetMisplacedObjects(casted_state);
   SetBlockingObjects(casted_state, true);
 }
-
 void MoveitTampProblem::SetMisplacedObjects(MoveitTampState *const state) const {
   std::unordered_set<std::size_t> state_misplaced_objects;
   for (std::size_t i = 0; i < objects_.size(); ++i) {
@@ -1351,11 +1516,13 @@ Cases:
 */
 
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
-  auto actions_iter = discovered_valid_actions_.find(casted_state->GetHash());
-  if (actions_iter != discovered_valid_actions_.end()) {
-    reused_valid_actions_++;
-    std::cout << "Reusing valid actions with lenght: " << actions_iter->second.size() << std::endl;
-    return actions_iter->second;
+  assert(casted_state);
+  if (reuse_expansions_) {
+    auto actions_iter = discovered_valid_actions_.find(casted_state->GetHash());
+    if (actions_iter != discovered_valid_actions_.end()) {
+      reused_valid_actions_ += actions_iter->second.size();
+      return actions_iter->second;
+    }
   }
 
   std::vector<Action *> valid_actions;
@@ -1366,79 +1533,70 @@ Cases:
     pose = robot_base_tf_inverse * pose;
   MoveCollisionObjects(object_names_, object_poses_in_robot_coords);
 
-  static moveit_msgs::RobotState::_joint_state_type joint_goal;
-
   // PLACE OR PICK ACTIONS DEPENDING ON IF THE ROBOT HAVE AN ATTACHED OBJECT
+  const auto obj_poses = casted_state->GetObjectPoses();
   if (casted_state->HasObjectAttached()) {
+
     const auto attached_object = objects_.find(casted_state->GetAttatchedObject());
-    if (attached_object == objects_.end()) {
-      ROS_WARN("UNRECOGNIZED TARGET OBJECT IN PLACE ACTION");
-    } else {
-      // move_group_interface_.attachObject(attached_object->first);
+    assert(attached_object == objects_.end());
+    // move_group_interface_.attachObject(attached_object->first);
 
-      // moveit_msgs::AttachedCollisionObject attached_collision_object;
-      // attached_collision_object.link_name = robot_grasping_link_;
-      // geometry_msgs::Pose grasping_link_to_obj;
-      // tf::poseEigenToMsg(casted_state->GetGrasp()->inverse(), grasping_link_to_obj);
-      // attached_collision_object.object =
-      //     GenerateMoveCollisionObjectMsg(attached_object->first, grasping_link_to_obj, robot_grasping_link_);
+    // moveit_msgs::AttachedCollisionObject attached_collision_object;
+    // attached_collision_object.link_name = robot_grasping_link_;
+    // geometry_msgs::Pose grasping_link_to_obj;
+    // tf::poseEigenToMsg(casted_state->GetGrasp()->inverse(), grasping_link_to_obj);
+    // attached_collision_object.object =
+    //     GenerateMoveCollisionObjectMsg(attached_object->first, grasping_link_to_obj, robot_grasping_link_);
 
-      // PLACE ACTIONS
-      for (const auto &object : objects_) {
-        for (const auto &surface : object.second.surfaces_) {
-          for (const auto &placement : surface.placements_) {
-            // std::cout << "Checking Workspace in placement" << std::endl;
+    // PLACE ACTIONS
+    for (const auto &object : objects_) {
+      for (const auto &surface : object.second.surfaces_) {
+        for (const auto &placement : surface.placements_) {
+          // std::cout << "Checking Workspace in placement" << std::endl;
 
-            if (!OnWorkspace(casted_state->GetRobotBasePose(), object.second.pose_ * placement))
+          if (!OnWorkspace(casted_state->GetRobotBasePose(), object.second.pose_ * placement))
+            continue;
+
+          // TODO assuming placement belongs to a non-movable object. This assumption is repeated in whole code
+          const auto placement_pos = object.second.pose_ * placement.translation();
+          bool found = false;
+          auto it = obj_poses.begin();
+          while (!found && it != obj_poses.end()) {
+            found = OnCircle(placement_pos, gripper_semiamplitude_, it->translation());
+            if(!found) ++it;
+          }
+          if (found)
+            continue;
+
+          for (const auto stable_object_pose : attached_object->second.stable_object_poses_) {
+            static moveit_msgs::RobotState::_joint_state_type joint_goal;
+            if (!ComputeIK(robot_base_tf_inverse * object.second.pose_ * placement * stable_object_pose *
+                               (*casted_state->GetGrasp()),
+                           joint_goal))
               continue;
-
-            // TODO assuming placement belongs to a non-movable object. This assumption is repeated in whole code
-            const auto placement_pos = object.second.pose_ * placement.translation();
-            bool found = false;
-            auto it = casted_state->GetObjectPoses().begin();
-            while (!found && it != casted_state->GetObjectPoses().end()) {
-              found = OnCircle(placement_pos, gripper_semiamplitude_, it->translation());
-              ++it;
+            // std::cout << "creating PlaceAction" << std::endl;
+            auto action = new PlaceAction(attached_object->first, joint_goal,
+                                          object.second.pose_ * placement * stable_object_pose);
+            if (!lazy) {
+              IsActionValid(state, action);
             }
-            if (found)
-              continue;
-
-            // std::cout << "Checking IK in placement" << std::endl;
-
-            for (const auto stable_object_pose : attached_object->second.stable_object_poses_) {
-
-              if (!ComputeIK(robot_base_tf_inverse * object.second.pose_ * placement * stable_object_pose *
-                                 (*casted_state->GetGrasp()),
-                             joint_goal))
-                continue;
-              // std::cout << "creating PlaceAction" << std::endl;
-              auto action = new PlaceAction(attached_object->first, joint_goal,
-                                            object.second.pose_ * placement * stable_object_pose);
-              if (!lazy) {
-                IsActionValid(state, action);
-              }
-              num_place_++;
-              valid_actions.push_back(action);
-            }
+            num_place_++;
+            valid_actions.push_back(action);
           }
         }
       }
-      // move_group_interface_.detachObject(attached_object->first);
     }
-  } else {
-    const auto obj_poses = casted_state->GetObjectPoses();
+  } else {    
     for (const auto i : casted_state->GetOnWorkspaceObjects()) {
 
       const auto object = objects_.find(object_names_.at(i));
-      if (object == objects_.end()) {
-        ROS_WARN("UNRECOGNIZED TARGET OBJECT IN PICKING ACTION");
-        continue;
-      }
+      assert(object == objects_.end());
+
       if (!object->second.moveable_)
         continue;
 
       for (const auto &grasp : object->second.grasps_) {
-
+        static moveit_msgs::RobotState::_joint_state_type joint_goal;
         if (!ComputeIK(robot_base_tf_inverse * obj_poses.at(i) * grasp, joint_goal))
           continue;
 
@@ -1451,21 +1609,20 @@ Cases:
       }
     }
   }
+
   // MOVE BASE ACTIONS
   std::size_t hash = 0;
-  CombineHashPose(hash, casted_state->GetRobotBasePose());
+  hasher_.CombineHashPose(hash, casted_state->GetRobotBasePose());
   auto res = location_connections_.find(hash);
-  if (res == location_connections_.end()) {
-    ROS_ERROR("Unknown current robot base pose");
-
-    return std::vector<Action *>();
-  }
+  assert(res == location_connections_.end());
   for (const auto &target : res->second) {
     auto action = new MoveBaseAction(base_locations_.at(target));
     num_move_base_++;
     valid_actions.push_back(action);
   }
+
   discovered_valid_actions_.insert(std::make_pair(casted_state->GetHash(), valid_actions));
+
   return valid_actions;
 }
 
@@ -1495,16 +1652,25 @@ bool MoveitTampProblem::IsActionValid(State const *const state, Action *const ac
       return false;
     }
     bool attached = move_group_interface_.attachObject(pick_action->GetTargetObjectId());
+
     assert(attached);
+    // std::string text;
+    // std::cout << "Pre planning trajectory" << std::endl;
+    // std::cin >> text;
     moveit_msgs::RobotState start_state;
     moveit_msgs::AttachedCollisionObject attached_object;
     geometry_msgs::Pose obj_pose;
     tf::poseEigenToMsg(robot_base_tf_inverse * pick_action->GetTargetObjectPose(), obj_pose);
     attached_object.object = GenerateMoveCollisionObjectMsg(pick_action->GetTargetObjectId(), obj_pose,
                                                             move_group_interface_.getPlanningFrame());
+
+    attached_object.object.operation = moveit_msgs::CollisionObject::ADD;
     attached_object.link_name = robot_grasping_link_;
+    // bool attached = planning_scene_interface_.applyAttachedCollisionObject(attached_object);
+    // assert(attached);
     start_state.attached_collision_objects.push_back(attached_object);
     start_state.joint_state = pick_action->GetJointGoal();
+    start_state.is_diff = true;
     moveit::planning_interface::MoveGroupInterface::Plan to_home_plan;
     if (!PlanToJointTarget(robot_home_joint_config_, to_home_plan, start_state)) {
       move_group_interface_.detachObject(pick_action->GetTargetObjectId());
@@ -1624,10 +1790,10 @@ void MoveitTampProblem::ComputeHashes(const Eigen::Affine3d &base_pose,
   // Base related hashs
   state_hash = 0;
   state_local_hash = 0;
-  CombineHashPose(state_hash, base_pose);
+  hasher_.CombineHashPose(state_hash, base_pose);
   std::size_t hash = 0;
-  hash_combine<std::string>(hash, std::string("robot"));
-  CombineHashPose(hash, base_pose);
+  hasher_.hash_combine<std::string>(hash, std::string("robot"));
+  hasher_.CombineHashPose(hash, base_pose);
   features_hashes.push_back(hash);
 
   // Object related hash
@@ -1643,23 +1809,23 @@ void MoveitTampProblem::ComputeHashes(const Eigen::Affine3d &base_pose,
     if (!object.moveable_)
       continue;
 
-    CombineHashPose(state_hash, object_poses.at(i));
+    hasher_.CombineHashPose(state_hash, object_poses.at(i));
     if (OnWorkspace(base_pose, object_poses.at(i))) {
       on_workspace_objects.push_back(i);
-      hash_combine<std::string>(state_local_hash, object_names_.at(i));
-      CombineHashPose(state_local_hash, object_poses.at(i));
+      hasher_.hash_combine<std::string>(state_local_hash, object_names_.at(i));
+      hasher_.CombineHashPose(state_local_hash, object_poses.at(i));
     }
 
     hash = 0;
-    hash_combine<std::string>(hash, object_names_.at(i));
+    hasher_.hash_combine<std::string>(hash, object_names_.at(i));
     if (i != attached_object_index) {
-      CombineHashPose(hash, Eigen::Affine3d(Eigen::Translation3d(object_poses.at(i).translation()) *
-                                            Eigen::Quaterniond::Identity()));
+      hasher_.CombineHashPose(hash, Eigen::Affine3d(Eigen::Translation3d(object_poses.at(i).translation()) *
+                                                    Eigen::Quaterniond::Identity()));
     } else {
-      CombineHashPose(hash,
-                      base_pose); // To represent object grasped it is set as the base pose (it does not add unique
-                                  // info to multiply for the tf between the base and the gripper and the selected
-                                  // grasped is expressly excluded in order to have more abstraction)
+      hasher_.CombineHashPose(hash,
+                              base_pose); // To represent object grasped it is set as the base pose (it does not add
+                                          // unique info to multiply for the tf between the base and the gripper and the
+                                          // selected grasped is expressly excluded in order to have more abstraction)
     }
     features_hashes.push_back(hash);
   };
@@ -1737,92 +1903,10 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
   return true;
 }
 
-bool MoveitTampProblem::Misplaced(const std::string &name, const Eigen::Affine3d &pose) const {
-  if (name.find("stick_blue") != std::string::npos) {
-    const auto &table3 = objects_.at("table3");
-    if (table3.surfaces_.front().on(table3.pose_.inverse() * pose.translation())) {
-      return false;
-    } else {
-      return true;
-    }
-  } else if (name.find("stick_green") != std::string::npos) {
-    const auto &table4 = objects_.at("table4");
-    if (table4.surfaces_.front().on(table4.pose_.inverse() * pose.translation())) {
-      return false;
-    } else {
-      return true;
-    }
-  } else {
-    return false;
-  }
-}
-
-void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool compute_s) const {
-
-  std::size_t min_num_blocking_objects = std::numeric_limits<std::size_t>::max();
-  std::size_t sum_min_blocking_objects = 0;
-
-  for (const auto misplaced_object_index : state->GetMisplacedObjects()) {
-    if (!compute_s && min_num_blocking_objects == 0)
-      break;
-
-    const auto &misplaced_object = objects_.at(object_names_.at(misplaced_object_index));
-    const auto object_pose = state->GetObjectPoses().at(misplaced_object_index);
-
-    std::size_t min_num_object_blocking_objects =
-        compute_s ? std::numeric_limits<std::size_t>::max() : min_num_blocking_objects;
-    for (const auto &grasp : misplaced_object.grasps_) {
-      if (min_num_object_blocking_objects == 0)
-        break;
-
-      Eigen::Vector3d o = object_pose * grasp.translation();
-
-      for (const auto &robot_pose : base_locations_) {
-        if (min_num_object_blocking_objects == 0)
-          break;
-
-        if (!OnWorkspace(robot_pose, object_pose))
-          continue;
-
-        Eigen::Vector3d v = robot_pose.translation() - o;
-
-        std::size_t num_blocking_objects = 0;
-        for (const auto &obstructing_object : objects_) {
-          if (num_blocking_objects >= min_num_object_blocking_objects)
-            break;
-
-          if (!obstructing_object.second.moveable_ || state->GetAttatchedObject() == obstructing_object.second.name_ ||
-              obstructing_object.second.name_ == misplaced_object.name_)
-            continue;
-
-          Eigen::Vector3d w =
-              state->GetObjectPoses().at(object_indices.at(obstructing_object.second.name_)).translation() - o;
-          double dist = (w - std::min(std::max(0.0, w.dot(v) / v.squaredNorm()), 1.0) * v).norm();
-
-          if (dist < blocking_object_distance_threshold_)
-            num_blocking_objects++;
-        }
-        if (num_blocking_objects < min_num_object_blocking_objects)
-          min_num_object_blocking_objects = num_blocking_objects;
-      }
-    }
-    if (min_num_object_blocking_objects < min_num_blocking_objects)
-      min_num_blocking_objects = min_num_object_blocking_objects;
-    if (compute_s)
-      sum_min_blocking_objects += min_num_object_blocking_objects;
-  }
-  if (min_num_blocking_objects > objects_.size())
-    min_num_blocking_objects = 0;
-
-  state->SetMinObstructingObjects(min_num_blocking_objects);
-  if (compute_s)
-    state->SetSumMinObjectsObstructingMisplacedObjects(sum_min_blocking_objects);
-}
-
 void MoveitTampProblem::PrintStatistics() const {
   std::cout << "Move: " << num_move_base_ << " Pick: " << num_pick_ << " Place: " << num_place_
-            << " Num total expansions: " << discovered_valid_actions_.size()
-            << " Num reused expansions: " << reused_valid_actions_ << "\nTotal IK calls: " << num_total_ik_calls_
+            << " Num total actions: " << num_move_base_ + num_pick_ + num_place_ + reused_valid_actions_
+            << " Num reused actions: " << reused_valid_actions_ << "\nTotal IK calls: " << num_total_ik_calls_
             << " Successful IK calls: " << num_successful_ik_calls_
             << "\nTotal motion plans: " << num_total_motion_plans_
             << " Successful motion plans: " << num_successful_motion_plans_ << std::endl;
@@ -1879,6 +1963,55 @@ bool MoveitTampProblem::SupportingSurface::on(const Eigen::Vector3d &position) c
   return (v(0) >= min_(0) - tol && v(0) <= max_(0) + tol) && (v(1) >= min_(1) - tol && v(1) <= max_(1) + tol) &&
          (v(2) >= 0. - tol && v(2) <= 0. + tol);
 }
+void MoveitTampProblem::SupportingSurface::sample(std::size_t num_samples) {
+  const unsigned int num_bins = std::max(1., std::ceil(sqrt(double(placements_.size()))));
+  std::vector<double> intervals_x(num_bins + 1), intervals_y(num_bins + 1), intervals_yaw(num_bins + 1);
+  std::vector<std::size_t> count_x(num_bins, 0), count_y(num_bins, 0), count_yaw(num_bins, 0);
+  double x, y, yaw;
+  for (unsigned int i = 0; i <= num_bins; ++i) {
+    intervals_x.at(i) = 0.05 + min_(0) + (max_(0) - min_(0) - 2 * 0.05) * double(i) / double(num_bins);
+    intervals_y.at(i) = 0.05 + min_(1) + (max_(1) - min_(1) - 2 * 0.05) * double(i) / double(num_bins);
+    intervals_yaw.at(i) = -M_PI + 2. * M_PI * double(i) / double(num_bins);
+  }
+  for (const auto &placement : placements_) {
+    const auto local_pose = pose_.inverse() * placement;
+    count_x.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(0) - min_(0)) /
+                                                               (max_(0) - min_(0)) * double(num_bins))))++;
+    count_y.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(1) - min_(1)) /
+                                                               (max_(1) - min_(1)) * double(num_bins))))++;
+    count_yaw.at(
+        std::min(num_bins - 1, (unsigned int)std::floor((atan2(local_pose.matrix()(1, 0) - local_pose.matrix()(0, 1),
+                                                               local_pose.matrix()(0, 0) + local_pose.matrix()(1, 1)) +
+                                                         M_PI) /
+                                                        (2. * M_PI) * double(num_bins))))++;
+  }
+  std::size_t min_count_x = *std::min_element(count_x.begin(), count_x.end());
+  std::size_t min_count_y = *std::min_element(count_y.begin(), count_y.end());
+  std::size_t min_count_yaw = *std::min_element(count_yaw.begin(), count_yaw.end());
+  std::vector<double> weights_x(num_bins, 0), weights_y(num_bins, 0), weights_yaw(num_bins, 0);
+  for (std::size_t i = 0; i < num_bins; ++i) {
+    if (count_x.at(i) == min_count_x)
+      weights_x.at(i) = 1;
+    if (count_y.at(i) == min_count_y)
+      weights_y.at(i) = 1;
+    if (count_yaw.at(i) == min_count_yaw)
+      weights_yaw.at(i) = 1;
+  }
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  std::default_random_engine generator(seed);
+  std::piecewise_constant_distribution<double> distribution_x(intervals_x.begin(), intervals_x.end(),
+                                                              weights_x.begin());
+  std::piecewise_constant_distribution<double> distribution_y(intervals_y.begin(), intervals_y.end(),
+                                                              weights_y.begin());
+  std::piecewise_constant_distribution<double> distribution_yaw(intervals_yaw.begin(), intervals_yaw.end(),
+                                                                weights_yaw.begin());
+  placements_.push_back(pose_ * Eigen::Translation3d(distribution_x(generator), distribution_y(generator), 0) *
+                        Eigen::AngleAxisd(distribution_yaw(generator), Eigen::Vector3d::UnitZ()));
+
+  if (num_samples > 1)
+    sample(num_samples - 1);
+}
+
 void MoveitTampProblem::SupportingSurface::sample() {
   const unsigned int num_bins = std::max(1., std::ceil(sqrt(double(placements_.size()))));
   std::vector<double> weights_x(num_bins, 0), weights_y(num_bins, 0), weights_yaw(num_bins, 0);

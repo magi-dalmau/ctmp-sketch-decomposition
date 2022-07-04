@@ -68,7 +68,8 @@ protected:
     // std::cout << "Starting processing " << *parent->GetState() << std::endl;
     for (const auto action : problem_->GetValidActions(parent->GetState(), lazy)) {
       double action_cost = problem_->GetCost(parent->GetState(), action);
-      auto successor = new Node(problem_->GetSuccessor(parent->GetState(), action), parent, action->Clone(), action_cost);
+      auto successor =
+          new Node(problem_->GetSuccessor(parent->GetState(), action), parent, action->Clone(), action_cost);
 
       assert(successor->GetState()->GetHash() != parent->GetState()->GetHash());
 
@@ -95,7 +96,7 @@ protected:
           num_rewired_++;
           auto connected_goal = duplicate_close->GetConnectedGoal();
           if (connected_goal) {
-            std::cout<<"Fond a connected to goal node"<<std::endl;
+            std::cout << "Fond a connected to goal node" << std::endl;
             std::cout << *duplicate_close->GetState() << " connected to goal " << *connected_goal->GetState()
                       << std::endl;
           }
@@ -172,12 +173,15 @@ protected:
       // In case you need for instance reorder pruned list after a duplicate has appeared
   };
   virtual bool Prune(Node *const node) { return false; }
-  virtual void ManagePruned(Node *const node) { delete node; }
+  virtual void ManagePruned(Node *const node) {
+    std::cout << "ManagePruned Search" << std::endl;
+    delete node;
+  }
   virtual void ManageOrphan(Node *const node){};
 
   virtual bool GetPlan(Plan &plan, Node *const goal) {
     num_plans_++;
-    //std::cout << "Starting plan computation from goal " << *goal->GetState() << std::endl;
+    // std::cout << "Starting plan computation from goal " << *goal->GetState() << std::endl;
     std::cout << "Starting plan computation" << std::endl;
     // std::string x;
     // std::cin >> x;

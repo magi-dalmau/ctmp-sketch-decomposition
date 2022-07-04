@@ -1,7 +1,7 @@
 #pragma once
 #include <Eigen/Geometry>
 #include <action.hpp>
-
+#include <vector>
 class MoveBaseAction : public Action {
 public:
   MoveBaseAction(const Eigen::Affine3d &target_location,

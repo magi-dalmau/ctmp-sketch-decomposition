@@ -97,7 +97,7 @@ public:
   bool IsParentConfirmed() const { return edges_.top().non_lazy_validated; }
 
   void UpdateEdgeCost(const Node *const parent, double new_parent_cost) {
-
+    std::cout << __LINE__<< std::endl;
     const double old_accumulated_cost = GetAccumulatedCost();
     bool found = false;
     std::vector<Edge> temp_edges;
@@ -120,6 +120,7 @@ public:
         successor->UpdateEdgeCost(this, new_accumulated_cost);
       }
     }
+    std::cout << __LINE__ << std::endl;
   }
 
   void AddSuccessor(Node *const successor) {

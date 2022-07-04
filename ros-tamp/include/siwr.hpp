@@ -22,6 +22,7 @@ public:
     while (!failed && !succeeded) {
       Plan sub_plan;
       printStatisticsSIWR();
+      problem_->AdaptativeSampling(start_state);
       problem_->SetActiveSketchRule(start_state);
       failed = !(IWk::Solve(sub_plan, lazy, start_state));
       UpdateSIWRStatistics();
@@ -63,15 +64,14 @@ public:
     siwr_num_duplicates_pruned_ = 0;
   }
 
-  virtual void printStatisticsSIWR() const  {
+  virtual void printStatisticsSIWR() const {
     std::cout << "Subproblems solved: " << num_subproblems_solved_ << "\n SIWr global statistics: " << std::endl;
-    std::cout << "Total Open: " << siwr_num_open_ << " Total Dup-Open: " << siwr_num_duplicates_open_ << " Total Closed: " << siwr_num_closed_
-              << " Total Dup-Closed: " << siwr_num_duplicates_closed_ << " Total Pruned: " << siwr_num_pruned_
-              << " Total Dup-Pruned: " << siwr_num_duplicates_pruned_ << " Total Processed: " << siwr_num_processed_
-              << " Total Rewired: " << siwr_num_rewired_ << " Total Get Plan: " << siwr_num_plans_
-              << " Total Already confirmed: " << siwr_num_already_confirmed_ << std::endl;
-
-
+    std::cout << "Total Open: " << siwr_num_open_ << " Total Dup-Open: " << siwr_num_duplicates_open_
+              << " Total Closed: " << siwr_num_closed_ << " Total Dup-Closed: " << siwr_num_duplicates_closed_
+              << " Total Pruned: " << siwr_num_pruned_ << " Total Dup-Pruned: " << siwr_num_duplicates_pruned_
+              << " Total Processed: " << siwr_num_processed_ << " Total Rewired: " << siwr_num_rewired_
+              << " Total Get Plan: " << siwr_num_plans_ << " Total Already confirmed: " << siwr_num_already_confirmed_
+              << std::endl;
   }
 
 protected:
