@@ -24,11 +24,10 @@
 
 // Generic CPP
 #include <Eigen/Geometry>
+#include <hasher.hpp>
 #include <iostream>
 #include <random>
 #include <unordered_map>
-#include <hasher.hpp>
-
 
 class MoveitTampProblem : public Problem {
 public:
@@ -78,7 +77,20 @@ protected:
   virtual void ComputeStateSketchFeatures(State *const state);
   virtual void SetMisplacedObjects(MoveitTampState *const state) const;
   virtual bool Misplaced(const std::string &name, const Eigen::Affine3d &pose) const = 0;
-  virtual void SetBlockingObjects(MoveitTampState *const state, bool compute_s = false) const = 0;
+  virtual void SetBlockingObjects(MoveitTampState *const state, bool compute_s = false) const;
+  std::size_t BlockingObjectsPlace(MoveitTampState const *const state, const Eigen::Affine3d &placement_pose,
+                                   const Eigen::Affine3d &grasp, const std::vector<Eigen::Affine3d> &sops,
+                                   const std::string &misplaced_object_name,
+                                   const std::size_t max_num_blocking_objects) const;
+
+  std::size_t BlockingObjectsPick(MoveitTampState const *const state, const Eigen::Affine3d &object_pose,
+                                  const Eigen::Affine3d &gripper_pose, const std::string &misplaced_object_name,
+                                  const std::size_t max_num_blocking_objects) const;
+
+  std::size_t BlockingObjects(MoveitTampState const *const state, const Eigen::Affine3d &target_pose,
+                              const Eigen::Affine3d &robot_pose, const Eigen::Affine3d &gripper_pose,
+                              const std::string &misplaced_object_name,
+                              const std::size_t max_num_blocking_objects) const;
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
@@ -122,6 +134,7 @@ protected:
                      const std::string &attached_object, std::size_t &state_hash, std::size_t &state_local_hash,
                      std::vector<std::size_t> &on_workspace_objects, std::vector<std::size_t> &features_hashes) const;
 
+  
 
   // Test only
   void AddTestCollision(); // TEST ONLY
@@ -146,9 +159,11 @@ protected:
 
   class SupportingSurface {
   public:
-    SupportingSurface(double x_min, double x_max, double y_min, double y_max, const Eigen::Affine3d &surface_pose);
+    SupportingSurface(double x_min, double x_max, double y_min, double y_max, const Eigen::Affine3d &surface_pose,
+                      double discretization, double padding);
     Eigen::Affine3d pose_;
     Eigen::Vector2d min_, max_;
+    double discretization_, padding_;
     std::vector<Eigen::Affine3d> placements_;
     double area() const;
     bool on(const Eigen::Vector3d &position) const;
@@ -171,6 +186,7 @@ protected:
   ros::NodeHandle nh_;
   Hasher hasher_;
   bool reuse_expansions_;
+  bool super_lazy_;
   ros::Publisher pub_placements_;
   ros::Publisher pub_locations_;
   ros::Publisher pub_objects_;
@@ -180,11 +196,14 @@ protected:
   geometry_msgs::PoseArray display_placements_;
   geometry_msgs::PoseArray display_locations_;
   visualization_msgs::MarkerArray display_objects_;
+  visualization_msgs::MarkerArray display_objects_start_;
+
   moveit_msgs::DisplayRobotState display_robot_state_;
   Eigen::Affine3d robot_pose_;
   std::map<std::string, Object> objects_;
   std::vector<std::string> object_names_;
   std::map<std::string, std::size_t> object_indices;
+  std::vector<std::size_t> object_idx_to_marker_idx_;
   std::vector<std::string> supporting_object_names;
   std::vector<Eigen::Affine3d> base_locations_;
   std::unordered_map<std::size_t, std::vector<std::size_t>> location_connections_;
@@ -216,10 +235,14 @@ protected:
   SketchRules active_sketch_rule_;
   SketchFeatures start_state_sketch_features_;
   double blocking_object_distance_threshold_;
+  double discretization_, padding_;
+  bool exclude_fronted_locations_;
+ 
 
   std::unordered_map<std::size_t, std::vector<Action *>> discovered_valid_actions_;
   std::map<std::string, Eigen::Vector3d> goal_positions_;
   double goal_tolerance_radius_;
+  bool goal_region_;
   // Statistics
   std::size_t num_move_base_, num_pick_, num_place_, num_total_ik_calls_, num_successful_ik_calls_,
       num_total_motion_plans_, num_successful_motion_plans_, reused_valid_actions_;

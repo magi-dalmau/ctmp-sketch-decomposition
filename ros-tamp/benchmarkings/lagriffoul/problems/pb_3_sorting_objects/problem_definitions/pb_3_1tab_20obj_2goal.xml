@@ -35,27 +35,6 @@
             <distance>0.0</distance>
          </sop>
       </obj>
-
-
-      
-      <obj>
-         <name>stick_green1</name>
-         <geom>stick_green.obj</geom>
-         <pose>1.000 0.000 0.000 1.09946 0.000 1.000 0.000 0.173731 0.000 0.000 1.000 0.767</pose>
-         <moveable>true</moveable>
-         <grasps>
-            <gc type="side">
-               <template>1.000 0.000 0.000 0.000 0.000 1.000 0.000 0.000 0.000 0.000 1.000 0.120</template>
-               <axis>0.0 0.0 1.0</axis>
-            </gc>
-         </grasps>
-         <sop>
-            <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
-            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
-            <distance>0.0</distance>
-         </sop>         
-      </obj>
-
       <obj>
          <name>stick_green2</name>
          <geom>stick_green.obj</geom>
@@ -69,9 +48,9 @@
          </grasps>
          <sop>
             <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
-            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
+            <axis>0.0 0.0 1.0</axis> <!-- "natural" position     -->
             <distance>0.0</distance>
-         </sop>         
+         </sop>
       </obj>
 
       <obj>
@@ -87,9 +66,9 @@
          </grasps>
          <sop>
             <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
-            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
+            <axis>0.0 0.0 1.0</axis> <!-- "natural" position     -->
             <distance>0.0</distance>
-         </sop>         
+         </sop>
       </obj>
 
       <obj>
@@ -105,9 +84,9 @@
          </grasps>
          <sop>
             <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
-            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
+            <axis>0.0 0.0 1.0</axis> <!-- "natural" position     -->
             <distance>0.0</distance>
-         </sop>         
+         </sop>
       </obj>
 
       <obj>
@@ -123,9 +102,9 @@
          </grasps>
          <sop>
             <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
-            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
+            <axis>0.0 0.0 1.0</axis> <!-- "natural" position     -->
             <distance>0.0</distance>
-         </sop>         
+         </sop>
       </obj>
 
       <obj>
@@ -141,15 +120,15 @@
          </grasps>
          <sop>
             <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
-            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
+            <axis>0.0 0.0 1.0</axis> <!-- "natural" position     -->
             <distance>0.0</distance>
-         </sop>         
+         </sop>
       </obj>
 
       <obj>
          <name>stick_green7</name>
          <geom>stick_green.obj</geom>
-         <pose>1.000 0.000 0.000 1.00624 0.000 1.000 0.000 -0.400697 0.000 0.000 1.000 0.767</pose>
+         <pose>1.000 0.000 0.000 1.03624 0.000 1.000 0.000 -0.400697 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
          <grasps>
             <gc type="side">
@@ -159,9 +138,9 @@
          </grasps>
          <sop>
             <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
-            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
+            <axis>0.0 0.0 1.0</axis> <!-- "natural" position     -->
             <distance>0.0</distance>
-         </sop>         
+         </sop>
       </obj>
 
       <obj>
@@ -348,7 +327,7 @@
       <obj>
          <name>stick_green18</name>
          <geom>stick_green.obj</geom>
-         <pose>1.000 0.000 0.000 0.800202 0.000 1.000 0.000 -0.413065 0.000 0.000 1.000 0.767</pose>
+         <pose>1.000 0.000 0.000 0.780202 0.000 1.000 0.000 -0.413065 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
          <grasps>
             <gc type="side">
@@ -362,6 +341,26 @@
             <distance>0.0</distance>
          </sop>
       </obj>
+
+      
+      <obj>
+         <name>stick_green1</name>
+         <geom>stick_green.obj</geom>
+         <pose>1.000 0.000 0.000 1.09946 0.000 1.000 0.000 0.173731 0.000 0.000 1.000 0.767</pose>
+         <moveable>true</moveable>
+         <grasps>
+            <gc type="side">
+               <template>1.000 0.000 0.000 0.000 0.000 1.000 0.000 0.000 0.000 0.000 1.000 0.120</template>
+               <axis>0.0 0.0 1.0</axis>
+            </gc>
+         </grasps>
+         <sop>
+            <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
+            <axis>0.0 0.0 1.0</axis>                                 <!-- "natural" position     -->
+            <distance>0.0</distance>
+         </sop>         
+      </obj>
+
       <obj>
          <name>target_red1</name>
          <geom>target_red.obj</geom>

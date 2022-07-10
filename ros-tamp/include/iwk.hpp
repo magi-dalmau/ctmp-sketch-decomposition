@@ -13,12 +13,14 @@ public:
     std::cout << "Solve IWk" << std::endl;
     Clear();
     for (k_ = 1; k_ <= k_max_; ++k_) {
+      std::cout<<" trying to solve the problem with k="<<k_<<std::endl;
       if (BrFS::Solve(plan, lazy, start)) {
         std::cout << "Solved with K=" << k_ << std::endl;
         return true;
       } else {
         Clear();
       }
+      std::cout<<"Failed to solve with k="<<k_<<std::endl;
     }
     std::cout << "Solution not found with Kmax=" << k_ << std::endl;
 
@@ -249,7 +251,7 @@ protected:
     assert(pruned_hash_table_.size() == num_pruned_);
   }
   virtual void printStatistics() const override{
-    std::cout<<"IKW statistics: "<<"managed orphans: "<<num_manage_orphans_<<" num substitutes: "<<num_susbstitutes_<<std::endl;
+    std::cout<<"IKW statistics: "<<"managed orphans: "<<num_manage_orphans_<<" num substitutes: "<<num_susbstitutes_<< " current k is "<<k_<<std::endl;
     Search::printStatistics();
   }
 

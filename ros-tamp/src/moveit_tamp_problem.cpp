@@ -78,6 +78,10 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   goal_tolerance_radius_ = nh_.param("goal_tolerance_radius_", 0.005);
   ik_service_name_ = nh_.param("ik_service_name", std::string("/compute_ik"));
   common_reference_ = nh_.param("common_reference", std::string("world"));
+  discretization_ = nh_.param("discretization_size", 0.05);
+  padding_ = nh_.param("sampling_padding", 0.025);
+  exclude_fronted_locations_ = nh_.param("exclude_fronted_locations", false);
+  goal_region_ = nh_.param("goal_region", true);
   tf_broadcaster_.sendTransform(tf::StampedTransform(tf::Transform(), ros::Time::now(), common_reference_,
                                                      move_group_interface_.getPlanningFrame()));
   robot_home_joint_config_.name = move_group_interface_.getJointNames();
@@ -95,13 +99,13 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   //                                                          Eigen::Vector3d(1., 1., 1.)); // TODO: set from roslaunch
 
   gripper_home_wrt_robot_base.fromPositionOrientationScale(Eigen::Vector3d(0.295, -0.398, 1.400),
-                                                           Eigen::Quaterniond(0.905, 0.353, 0.236, 0.015),
+                                                           Eigen::Quaterniond(0.015, 0.905, 0.353, 0.236),
                                                            Eigen::Vector3d(1., 1., 1.)); // TODO: set from roslaunch
   robot_workspace_center_translation_ = Eigen::Vector3d(0.093, 0.014, 1.070);            // TODO: set from roslaunch
-  robot_workspace_max_radius_ =
-      0.795; // TODO_worskpace radio coarse estimation, should be refined and setted form roslaunch
-  robot_workspace_min_radius_ =
-      0.395; // TODO_worskpace radio coarse estimation, should be refined and setted form roslaunch
+  robot_workspace_max_radius_ = nh_.param("robot_workspace_max_radius", 0.795);
+  0.795; // TODO_worskpace radio coarse estimation, should be refined
+  robot_workspace_min_radius_ = nh_.param("robot_workspace_min_radius", 0.395);
+  // TODO_worskpace radio coarse estimation, should be refined
 
   gripper_semiamplitude_ = nh_.param("gripper_semiamplitude", 0.045);
 
@@ -138,6 +142,7 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
 
 MoveitTampProblem::~MoveitTampProblem() {
   display_timer_.stop();
+
   for (auto &state_actions : discovered_valid_actions_) {
     for (auto &action : state_actions.second) {
       delete action;
@@ -240,7 +245,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
 
       visualization_msgs::Marker display_object;
       display_object.header.frame_id = common_reference_;
-      display_object.ns = "non-moveable_objects";
+      display_object.ns = "static_objects";
       display_object.id = display_objects_.markers.size();
       display_object.type = visualization_msgs::Marker::CYLINDER;
       display_object.scale.x = 0.045;
@@ -297,7 +302,8 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
         supporting_object_names.push_back(object.name_);
       }
       object.surfaces_.push_back(SupportingSurface(x_min, x_max, y_min, y_max,
-                                                   Eigen::Affine3d(Eigen::Translation3d(0, 0, z + surface_offset))));
+                                                   Eigen::Affine3d(Eigen::Translation3d(0, 0, z + surface_offset)),
+                                                   discretization_, padding_));
 
       visualization_msgs::Marker display_surface;
       display_surface.header.frame_id = common_reference_;
@@ -361,7 +367,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
     // POPULATE PLACEMENTS
     if (obj->FirstChildElement("attachments")) {
       for (auto attachment = obj->FirstChildElement("attachments")->FirstChildElement("name"); attachment;
-           attachment = attachment->NextSiblingElement("name")) {
+           attachment = attachment->NextSiblingElement("nxame")) {
         auto &other_object = objects_.at(attachment->GetText());
         for (auto &surface : object.surfaces_) {
           if (surface.on(object.pose_.inverse() * other_object.pose_.translation()))
@@ -374,10 +380,10 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
     object_names_.push_back(object.name_);
     object_indices.insert(std::make_pair(object.name_, object_names_.size() - 1));
     std::cout << "Inserted object " << object.name_ << std::endl;
-
+    object_idx_to_marker_idx_.push_back(display_objects_.markers.size());
     visualization_msgs::Marker display_object;
     display_object.header.frame_id = common_reference_;
-    display_object.ns = object.moveable_ ? "moveable_objects" : "non-moveable_objects";
+    display_object.ns = object.moveable_ ? "moveable_objects" : "static_objects";
     display_object.id = display_objects_.markers.size();
     display_object.type = visualization_msgs::Marker::MESH_RESOURCE;
     std::string mesh_name = object.mesh_.substr(0, object.mesh_.find_last_of('.'));
@@ -501,7 +507,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
   }
   if (!display_location_connections.points.empty())
     display_objects_.markers.push_back(display_location_connections);
-
+  display_objects_start_ = display_objects_;
   // POPULATE ROBOT STATE
   display_robot_state_.state.joint_state = robot_home_joint_config_;
 
@@ -728,15 +734,21 @@ void MoveitTampProblem::PopulateLocationConnections() {
 }
 
 bool MoveitTampProblem::LocationReachable(const Eigen::Affine3d &origin, const Eigen::Affine3d &destination) const {
+
   // return Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
   //        allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_;
   // TODO: provional check to avoid wrong connections side vs side table bases
-  double angle_diff =
-      acos(cos((destination.rotation().eulerAngles(0, 1, 2)[2] - origin.rotation().eulerAngles(0, 1, 2)[2])));
+  if (exclude_fronted_locations_) {
+    double angle_diff =
+        acos(cos((destination.rotation().eulerAngles(0, 1, 2)[2] - origin.rotation().eulerAngles(0, 1, 2)[2])));
 
-  return (Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
-          allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_) &&
-         (fabs(angle_diff - M_PI) > 1e-3);
+    return (Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
+            allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_) &&
+           (fabs(angle_diff - M_PI) > 1e-3);
+  } else {
+    return Eigen::Vector3d(destination.translation() - origin.translation()).squaredNorm() <=
+           allowed_distance_between_connected_locations_ * allowed_distance_between_connected_locations_;
+  }
 }
 
 // void MoveitTampProblem::LoadPlacements(std::size_t num_surfaces) {
@@ -793,9 +805,10 @@ void MoveitTampProblem::AdaptativeSampling(const State *const state) {
 
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
   AddCurrentObjectsToPlacements(casted_state->GetObjectPoses());
-
+// std::cout<< "There are "<<goal_positions_.size()<<" goal positions"<<std::endl;
   // Add Non-Occupied target poses
   for (const auto &target_pose : goal_positions_) {
+    // std::cout<<"target pose "<<target_pose.first<<std::endl;
     bool surface_found = false;
     for (const auto &name : supporting_object_names) {
       if (surface_found)
@@ -818,9 +831,13 @@ void MoveitTampProblem::AdaptativeSampling(const State *const state) {
               }
             }
             if (!placement_found) {
+              // std::cout<<"added to placements"<<std::endl;
               surface.placements_.push_back(supporting_obj->second.pose_.inverse() *
                                             Eigen::Affine3d(Eigen::Translation3d(target_pose.second)));
             }
+            // else{
+            //   std::cout << "NOT added to placements" << std::endl;
+            // }
           }
         }
       }
@@ -849,6 +866,14 @@ void MoveitTampProblem::AdaptativeSampling(const State *const state) {
       }
     }
   }
+  const auto object_poses = casted_state->GetObjectPoses();
+  assert(object_poses.size() == object_idx_to_marker_idx_.size());
+  geometry_msgs::Pose pose_msg;
+  for (std::size_t i = 0; i < object_poses.size(); i++) {
+    tf::poseEigenToMsg(object_poses.at(i), pose_msg);
+    display_objects_.markers.at(object_idx_to_marker_idx_.at(i)).pose = pose_msg;
+  }
+  // std::cout<<"end of adaptative sampling"<<std::endl;
 }
 
 // Visualization methods
@@ -1143,14 +1168,15 @@ bool MoveitTampProblem::ExecutePlan(const Plan &plan) {
   //   return false;
   // }
   robot_pose_ = robot_origin_;
-  std::size_t j = 0;
-  for (std::size_t i = 0; i < objects_.size(); ++i) {
-    while (display_objects_.markers.at(j).ns.find("objects") == std::string::npos)
-      j++;
-    display_objects_.markers.at(j).header.frame_id = common_reference_;
-    tf::poseEigenToMsg(objects_.at(object_names_.at(i)).pose_, display_objects_.markers.at(j).pose);
-    j++;
-  }
+  // std::size_t j = 0;
+  // for (std::size_t i = 0; i < objects_.size(); ++i) {
+  //   while (display_objects_.markers.at(j).ns.find("moveable_objects") == std::string::npos)
+  //     j++;
+  //   display_objects_.markers.at(j).header.frame_id = common_reference_;
+  //   tf::poseEigenToMsg(objects_.at(object_names_.at(i)).pose_, display_objects_.markers.at(j).pose);
+  //   j++;
+  // }
+  display_objects_ = display_objects_start_;
   std::cout << "Be ready for plan execution" << std::endl;
   std::string x;
   std::cin >> x;
@@ -1272,10 +1298,13 @@ bool MoveitTampProblem::ExecutePlan(const moveit::planning_interface::MoveGroupI
 // }
 
 void MoveitTampProblem::ComputeStateSketchFeatures(State *const state) {
+
   // compute state features
   auto casted_state = dynamic_cast<MoveitTampState *>(state);
   SetMisplacedObjects(casted_state);
+  // std::cout<<"computed misplaced of start state"<<std::endl;
   SetBlockingObjects(casted_state, true);
+  // std::cout << "computed blocking of start state" << std::endl;
 }
 void MoveitTampProblem::SetMisplacedObjects(MoveitTampState *const state) const {
   std::unordered_set<std::size_t> state_misplaced_objects;
@@ -1284,6 +1313,7 @@ void MoveitTampProblem::SetMisplacedObjects(MoveitTampState *const state) const 
         Misplaced(object_names_.at(i), state->GetObjectPoses().at(i)))
       state_misplaced_objects.insert(i);
   }
+
   state->SetMisplacedObjects(state_misplaced_objects);
 }
 
@@ -1563,7 +1593,8 @@ Cases:
           auto it = obj_poses.begin();
           while (!found && it != obj_poses.end()) {
             found = OnCircle(placement_pos, gripper_semiamplitude_, it->translation());
-            if(!found) ++it;
+            if (!found)
+              ++it;
           }
           if (found)
             continue;
@@ -1577,8 +1608,9 @@ Cases:
             // std::cout << "creating PlaceAction" << std::endl;
             auto action = new PlaceAction(attached_object->first, joint_goal,
                                           object.second.pose_ * placement * stable_object_pose);
-            if (!lazy) {
-              IsActionValid(state, action);
+            if (!lazy&&!IsActionValid(state, action)) {
+              delete action;
+              continue;
             }
             num_place_++;
             valid_actions.push_back(action);
@@ -1586,7 +1618,7 @@ Cases:
         }
       }
     }
-  } else {    
+  } else {
     for (const auto i : casted_state->GetOnWorkspaceObjects()) {
 
       const auto object = objects_.find(object_names_.at(i));
@@ -1601,8 +1633,9 @@ Cases:
           continue;
 
         auto action = new PickAction(object->first, joint_goal, &grasp, obj_poses.at(i));
-        if (!lazy) {
-          IsActionValid(state, action);
+        if (!lazy && !IsActionValid(state, action)) {
+          delete action;
+          continue;
         }
         num_pick_++;
         valid_actions.push_back(action);
@@ -1728,6 +1761,7 @@ bool MoveitTampProblem::IsActionValid(State const *const state, Action *const ac
 }
 
 State *const MoveitTampProblem::GetSuccessor(State const *const state, Action const *const action) {
+
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
   // TODO: Maybe a more elegant way to organize kinds of actions, maybe each action should have an Apply method but
   // then is state dependent...
@@ -1860,6 +1894,7 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
   */
 
   // TODO optimize computing s or not
+  // std::cout<<"selecting sketch"<<std::endl;
   auto cloned_state = state->Clone();
   ComputeStateSketchFeatures(cloned_state);
   auto casted_state = dynamic_cast<const MoveitTampState *>(cloned_state);
@@ -1867,6 +1902,28 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
   start_state_sketch_features_.m = casted_state->GetNumOfMisplacedObjects();
   start_state_sketch_features_.n = casted_state->GetMinObstructingObjects();
   start_state_sketch_features_.s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
+  // TODO: should only be in the monotonic case
+  if (!goal_positions_.empty()) {
+    std::cout << "checking objects already in goal" << std::endl;
+    const auto object_poses = casted_state->GetObjectPoses();
+    for (auto const &goal : goal_positions_) {
+      const std::string goal_id = goal.first.substr(goal.first.find("_") + 1);
+      std::cout << "Checking id: " << goal_id << std::endl;
+      for (const auto indice : object_indices) {
+        if (indice.first.find(goal_id) != std::string::npos) {
+          std::cout << "Checking object " << indice.first << std::endl;
+          auto object = objects_.find(indice.first);
+          if (object != objects_.end() && object->second.moveable_ &&
+              OnCircle(object_poses.at(indice.second).translation(), goal_tolerance_radius_, goal.second)) {
+            object->second.moveable_ = false;
+            std::cout << "Object " << object->first << " is in goal position and is no longer moveable" << std::endl;
+          }
+        }
+      }
+      // target_blue
+      // stick_blue1
+    }
+  }
   delete cloned_state;
 
   std::cout << "Selecting subproblem sketch: "
@@ -1901,6 +1958,181 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
     active_sketch_rule_ = MoveitTampProblem::PLACE_OBJECT;
   }
   return true;
+
+}
+
+void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool compute_s) const {
+
+  std::size_t min_num_blocking_objects = std::numeric_limits<std::size_t>::max();
+  std::size_t sum_min_blocking_objects = 0;
+
+  for (const auto misplaced_object_index : state->GetMisplacedObjects()) {
+    if (!compute_s && min_num_blocking_objects == 0)
+      break;
+    const auto &misplaced_object = objects_.at(object_names_.at(misplaced_object_index));
+
+    if (!goal_region_ && state->GetAttatchedObject() == misplaced_object.name_) {
+      auto target_pose =
+          goal_positions_.find("target" + misplaced_object.name_.substr(misplaced_object.name_.find("_")));
+      if (target_pose == goal_positions_.end())
+        continue;
+      std::size_t num_blocking_objects =
+          BlockingObjectsPlace(state, Eigen::Affine3d(Eigen::Translation3d(target_pose->second)), *state->GetGrasp(),
+                               misplaced_object.stable_object_poses_, misplaced_object.name_,
+                               compute_s ? std::numeric_limits<std::size_t>::max() : min_num_blocking_objects);
+      if (num_blocking_objects < min_num_blocking_objects)
+        min_num_blocking_objects = num_blocking_objects;
+      if (compute_s)
+        sum_min_blocking_objects += num_blocking_objects;
+    } else {
+
+      const auto object_pose = state->GetObjectPoses().at(misplaced_object_index);
+      // std::cout << "Checking misplaced obj: " << misplaced_object.name_ << std::endl;
+
+      std::size_t min_num_object_blocking_objects =
+          compute_s ? std::numeric_limits<std::size_t>::max() : min_num_blocking_objects;
+
+      if (!goal_region_) {
+        auto target_pose =
+            goal_positions_.find("target" + misplaced_object.name_.substr(misplaced_object.name_.find("_")));
+        if (target_pose == goal_positions_.end())
+          continue;
+
+        for (const auto &grasp : misplaced_object.grasps_) {
+          if (min_num_object_blocking_objects == 0)
+            break;
+
+          std::size_t num_blocking_objects = BlockingObjectsPick(
+              state, object_pose, object_pose * grasp, misplaced_object.name_, min_num_object_blocking_objects);
+
+          if (min_num_object_blocking_objects > num_blocking_objects) {
+            num_blocking_objects +=
+                BlockingObjectsPlace(state, Eigen::Affine3d(Eigen::Translation3d(target_pose->second)), grasp,
+                                     misplaced_object.stable_object_poses_, misplaced_object.name_,
+                                     min_num_object_blocking_objects - num_blocking_objects);
+          }
+
+          if (num_blocking_objects < min_num_object_blocking_objects) {
+            min_num_object_blocking_objects = num_blocking_objects;
+          }
+        }
+      } else {
+        for (const auto &grasp : misplaced_object.grasps_) {
+          if (min_num_object_blocking_objects == 0)
+            break;
+
+          std::size_t num_blocking_objects = BlockingObjectsPick(
+              state, object_pose, object_pose * grasp, misplaced_object.name_, min_num_object_blocking_objects);
+
+          if (num_blocking_objects < min_num_object_blocking_objects) {
+            min_num_object_blocking_objects = num_blocking_objects;
+          }
+        }
+      }
+
+      if (min_num_object_blocking_objects < min_num_blocking_objects)
+        min_num_blocking_objects = min_num_object_blocking_objects;
+      if (compute_s)
+        sum_min_blocking_objects += min_num_object_blocking_objects;
+    }
+  }
+
+  if (min_num_blocking_objects > objects_.size())
+    min_num_blocking_objects = 0;
+
+  state->SetMinObstructingObjects(min_num_blocking_objects);
+  if (compute_s)
+    state->SetSumMinObjectsObstructingMisplacedObjects(sum_min_blocking_objects);
+}
+
+std::size_t MoveitTampProblem::BlockingObjectsPlace(MoveitTampState const *const state,
+                                                       const Eigen::Affine3d &placement_pose,
+                                                       const Eigen::Affine3d &grasp,
+                                                       const std::vector<Eigen::Affine3d> &sops,
+                                                       const std::string &misplaced_object_name,
+                                                       const std::size_t max_num_blocking_objects) const {
+  std::size_t min_num_blocking_objects = max_num_blocking_objects;
+  for (const auto &robot_pose : base_locations_) {
+    if (min_num_blocking_objects == 0)
+      break;
+
+    if (!OnWorkspace(robot_pose, placement_pose))
+      continue;
+
+    for (const auto &sop : sops) {
+      if (min_num_blocking_objects == 0)
+        break;
+
+      std::size_t num_blocking_objects =
+          BlockingObjects(state, placement_pose * sop, robot_pose, placement_pose * sop * grasp, misplaced_object_name,
+                          min_num_blocking_objects);
+      if (num_blocking_objects < min_num_blocking_objects)
+        min_num_blocking_objects = num_blocking_objects;
+    }
+  }
+
+  return min_num_blocking_objects;
+}
+
+std::size_t MoveitTampProblem::BlockingObjectsPick(MoveitTampState const *const state,
+                                                   const Eigen::Affine3d &object_pose,
+                                                   const Eigen::Affine3d &gripper_pose,
+                                                   const std::string &misplaced_object_name,
+                                                   const std::size_t max_num_blocking_objects) const {
+  std::size_t min_num_blocking_objects = max_num_blocking_objects;
+  for (const auto &robot_pose : base_locations_) {
+    if (min_num_blocking_objects == 0)
+      break;
+
+    if (!OnWorkspace(robot_pose, object_pose))
+      continue;
+
+    std::size_t num_blocking_objects =
+        BlockingObjects(state, object_pose, robot_pose, gripper_pose, misplaced_object_name, min_num_blocking_objects);
+
+    if (num_blocking_objects < min_num_blocking_objects)
+      min_num_blocking_objects = num_blocking_objects;
+  }
+
+  return min_num_blocking_objects;
+}
+
+std::size_t MoveitTampProblem::BlockingObjects(MoveitTampState const *const state, const Eigen::Affine3d &target_pose,
+                                               const Eigen::Affine3d &robot_pose, const Eigen::Affine3d &gripper_pose,
+                                               const std::string &misplaced_object_name,
+                                               const std::size_t max_num_blocking_objects) const {
+  Eigen::Vector3d g = gripper_pose.translation();
+  Eigen::Vector3d r = robot_pose.translation() - g;
+  r(2) = 0;
+  Eigen::Vector3d o = target_pose.translation() - g;
+  o(2) = 0;
+
+  std::size_t num_blocking_objects = 0;
+  for (const auto &obstructing_object : objects_) {
+    if (num_blocking_objects >= max_num_blocking_objects)
+      break;
+
+    if (!obstructing_object.second.moveable_ || state->GetAttatchedObject() == obstructing_object.second.name_ ||
+        obstructing_object.second.name_ == misplaced_object_name)
+      continue;
+
+    Eigen::Vector3d w =
+        state->GetObjectPoses().at(object_indices.at(obstructing_object.second.name_)).translation() - g;
+    w(2) = 0;
+
+    double dist = (w - std::min(std::max(0.0, w.dot(r) / r.squaredNorm()), 1.0) * r).norm();
+
+    if (dist < blocking_object_distance_threshold_) {
+      num_blocking_objects++;
+    } else {
+      dist = (w - std::min(std::max(0.0, w.dot(o) / o.squaredNorm()), 1.0) * o).norm();
+
+      if (dist < blocking_object_distance_threshold_)
+        num_blocking_objects++;
+    }
+  }
+
+  return num_blocking_objects;
 }
 
 void MoveitTampProblem::PrintStatistics() const {
@@ -1948,12 +2180,15 @@ void MoveitTampProblem::AddTestCollision() {
 // FRIEND CLASSES
 //  Supporting Surface Methods
 MoveitTampProblem::SupportingSurface::SupportingSurface(double x_min, double x_max, double y_min, double y_max,
-                                                        const Eigen::Affine3d &surface_pose)
+                                                        const Eigen::Affine3d &surface_pose, double discretization,
+                                                        double padding)
     : pose_(surface_pose) {
   min_(0) = x_min;
   min_(1) = y_min;
   max_(0) = x_max;
   max_(1) = y_max;
+  discretization_ = discretization;
+  padding_ = padding;
 };
 
 double MoveitTampProblem::SupportingSurface::area() const { return (max_ - min_).prod(); }
@@ -1963,46 +2198,108 @@ bool MoveitTampProblem::SupportingSurface::on(const Eigen::Vector3d &position) c
   return (v(0) >= min_(0) - tol && v(0) <= max_(0) + tol) && (v(1) >= min_(1) - tol && v(1) <= max_(1) + tol) &&
          (v(2) >= 0. - tol && v(2) <= 0. + tol);
 }
+
+// void MoveitTampProblem::SupportingSurface::sample(std::size_t num_samples) {
+//   const unsigned int num_bins = std::max(1., std::ceil(sqrt(double(placements_.size()))));
+//   std::vector<double> intervals_x(num_bins + 1), intervals_y(num_bins + 1), intervals_yaw(num_bins + 1);
+//   std::vector<std::size_t> count_x(num_bins, 0), count_y(num_bins, 0), count_yaw(num_bins, 0);
+//   double x, y, yaw;
+//   for (unsigned int i = 0; i <= num_bins; ++i) {
+//     intervals_x.at(i) = 0.05 + min_(0) + (max_(0) - min_(0) - 2 * 0.05) * double(i) / double(num_bins);
+//     intervals_y.at(i) = 0.05 + min_(1) + (max_(1) - min_(1) - 2 * 0.05) * double(i) / double(num_bins);
+//     intervals_yaw.at(i) = -M_PI + 2. * M_PI * double(i) / double(num_bins);
+//   }
+//   for (const auto &placement : placements_) {
+//     const auto local_pose = pose_.inverse() * placement;
+//     count_x.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(0) - min_(0)) /
+//                                                                (max_(0) - min_(0)) * double(num_bins))))++;
+//     count_y.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(1) - min_(1)) /
+//                                                                (max_(1) - min_(1)) * double(num_bins))))++;
+//     count_yaw.at(
+//         std::min(num_bins - 1, (unsigned int)std::floor((atan2(local_pose.matrix()(1, 0) - local_pose.matrix()(0, 1),
+//                                                                local_pose.matrix()(0, 0) + local_pose.matrix()(1, 1))
+//                                                                +
+//                                                          M_PI) /
+//                                                         (2. * M_PI) * double(num_bins))))++;
+//   }
+//   std::size_t min_count_x = *std::min_element(count_x.begin(), count_x.end());
+//   std::size_t min_count_y = *std::min_element(count_y.begin(), count_y.end());
+//   std::size_t min_count_yaw = *std::min_element(count_yaw.begin(), count_yaw.end());
+//   std::vector<double> weights_x(num_bins, 0), weights_y(num_bins, 0), weights_yaw(num_bins, 0);
+//   for (std::size_t i = 0; i < num_bins; ++i) {
+//     if (count_x.at(i) == min_count_x)
+//       weights_x.at(i) = 1;
+//     if (count_y.at(i) == min_count_y)
+//       weights_y.at(i) = 1;
+//     if (count_yaw.at(i) == min_count_yaw)
+//       weights_yaw.at(i) = 1;
+//   }
+//   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+//   std::default_random_engine generator(seed);
+//   std::piecewise_constant_distribution<double> distribution_x(intervals_x.begin(), intervals_x.end(),
+//                                                               weights_x.begin());
+//   std::piecewise_constant_distribution<double> distribution_y(intervals_y.begin(), intervals_y.end(),
+//                                                               weights_y.begin());
+//   std::piecewise_constant_distribution<double> distribution_yaw(intervals_yaw.begin(), intervals_yaw.end(),
+//                                                                 weights_yaw.begin());
+//   placements_.push_back(pose_ * Eigen::Translation3d(distribution_x(generator), distribution_y(generator), 0) *
+//                         Eigen::AngleAxisd(distribution_yaw(generator), Eigen::Vector3d::UnitZ()));
+
+//   if (num_samples > 1)
+//     sample(num_samples - 1);
+// }
+
 void MoveitTampProblem::SupportingSurface::sample(std::size_t num_samples) {
-  const unsigned int num_bins = std::max(1., std::ceil(sqrt(double(placements_.size()))));
-  std::vector<double> intervals_x(num_bins + 1), intervals_y(num_bins + 1), intervals_yaw(num_bins + 1);
-  std::vector<std::size_t> count_x(num_bins, 0), count_y(num_bins, 0), count_yaw(num_bins, 0);
-  double x, y, yaw;
-  for (unsigned int i = 0; i <= num_bins; ++i) {
-    intervals_x.at(i) = 0.05 + min_(0) + (max_(0) - min_(0) - 2 * 0.05) * double(i) / double(num_bins);
-    intervals_y.at(i) = 0.05 + min_(1) + (max_(1) - min_(1) - 2 * 0.05) * double(i) / double(num_bins);
-    intervals_yaw.at(i) = -M_PI + 2. * M_PI * double(i) / double(num_bins);
+  const std::size_t num_bins_x = std::max(1., std::ceil((max_(0) - min_(0) - 2 * padding_) / discretization_));
+  const std::size_t num_bins_y = std::max(1., std::ceil((max_(1) - min_(1) - 2 * padding_) / discretization_));
+  const std::size_t num_bins_yaw = 4;
+
+  std::vector<double> intervals_x(num_bins_x + 1), intervals_y(num_bins_y + 1), intervals_yaw(num_bins_yaw + 1);
+  for (std::size_t k = 0; k <= num_bins_x; ++k) {
+    intervals_x.at(k) = padding_ + min_(0) + (max_(0) - min_(0) - 2 * padding_) * double(k) / double(num_bins_x);
   }
+  for (std::size_t k = 0; k <= num_bins_y; ++k) {
+    intervals_y.at(k) = padding_ + min_(1) + (max_(1) - min_(1) - 2 * padding_) * double(k) / double(num_bins_y);
+  }
+  for (std::size_t k = 0; k <= num_bins_yaw; ++k) {
+    intervals_yaw.at(k) = -M_PI + 2. * M_PI * double(k) / double(num_bins_yaw);
+  }
+  std::vector<std::size_t> count_xy(num_bins_x * num_bins_y, 0), count_yaw(num_bins_yaw, 0);
   for (const auto &placement : placements_) {
     const auto local_pose = pose_.inverse() * placement;
-    count_x.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(0) - min_(0)) /
-                                                               (max_(0) - min_(0)) * double(num_bins))))++;
-    count_y.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(1) - min_(1)) /
-                                                               (max_(1) - min_(1)) * double(num_bins))))++;
-    count_yaw.at(
-        std::min(num_bins - 1, (unsigned int)std::floor((atan2(local_pose.matrix()(1, 0) - local_pose.matrix()(0, 1),
-                                                               local_pose.matrix()(0, 0) + local_pose.matrix()(1, 1)) +
-                                                         M_PI) /
-                                                        (2. * M_PI) * double(num_bins))))++;
+    std::size_t index_x =
+        std::min(num_bins_x - 1, (std::size_t)std::floor((local_pose.translation()(0) - min_(0) - padding_) /
+                                                         (max_(0) - min_(0) - 2 * padding_) * double(num_bins_x)));
+    std::size_t index_y =
+        std::min(num_bins_y - 1, (std::size_t)std::floor((local_pose.translation()(1) - min_(1) - padding_) /
+                                                         (max_(1) - min_(1) - 2 * padding_) * double(num_bins_y)));
+    std::size_t index_yaw = std::min(
+        num_bins_yaw - 1, (std::size_t)std::floor((atan2(local_pose.matrix()(1, 0) - local_pose.matrix()(0, 1),
+                                                         local_pose.matrix()(0, 0) + local_pose.matrix()(1, 1)) +
+                                                   M_PI) /
+                                                  (2. * M_PI) * double(num_bins_yaw)));
+    count_xy.at(index_x * num_bins_y + index_y)++;
+    count_yaw.at(index_yaw)++;
   }
-  std::size_t min_count_x = *std::min_element(count_x.begin(), count_x.end());
-  std::size_t min_count_y = *std::min_element(count_y.begin(), count_y.end());
+  std::size_t min_count_xy = *std::min_element(count_xy.begin(), count_xy.end());
   std::size_t min_count_yaw = *std::min_element(count_yaw.begin(), count_yaw.end());
-  std::vector<double> weights_x(num_bins, 0), weights_y(num_bins, 0), weights_yaw(num_bins, 0);
-  for (std::size_t i = 0; i < num_bins; ++i) {
-    if (count_x.at(i) == min_count_x)
-      weights_x.at(i) = 1;
-    if (count_y.at(i) == min_count_y)
-      weights_y.at(i) = 1;
-    if (count_yaw.at(i) == min_count_yaw)
-      weights_yaw.at(i) = 1;
+  std::vector<double> weights_xy(num_bins_x * num_bins_y, 0), weights_yaw(num_bins_yaw, 0);
+  for (std::size_t k = 0; k < num_bins_x * num_bins_y; ++k) {
+    if (count_xy.at(k) == min_count_xy)
+      weights_xy.at(k) = 1;
+  }
+  for (std::size_t k = 0; k < num_bins_yaw; ++k) {
+    if (count_yaw.at(k) == min_count_yaw)
+      weights_yaw.at(k) = 1;
   }
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   std::default_random_engine generator(seed);
-  std::piecewise_constant_distribution<double> distribution_x(intervals_x.begin(), intervals_x.end(),
-                                                              weights_x.begin());
-  std::piecewise_constant_distribution<double> distribution_y(intervals_y.begin(), intervals_y.end(),
-                                                              weights_y.begin());
+  std::discrete_distribution<std::size_t> distribution_xy(weights_xy.begin(), weights_xy.end());
+  const std::size_t index_xy = distribution_xy(generator);
+  const std::size_t index_x = index_xy / num_bins_y;
+  const std::size_t index_y = index_xy % num_bins_y;
+  std::uniform_real_distribution<double> distribution_x(intervals_x.at(index_x), intervals_x.at(index_x + 1));
+  std::uniform_real_distribution<double> distribution_y(intervals_y.at(index_y), intervals_y.at(index_y + 1));
   std::piecewise_constant_distribution<double> distribution_yaw(intervals_yaw.begin(), intervals_yaw.end(),
                                                                 weights_yaw.begin());
   placements_.push_back(pose_ * Eigen::Translation3d(distribution_x(generator), distribution_y(generator), 0) *
@@ -2010,6 +2307,19 @@ void MoveitTampProblem::SupportingSurface::sample(std::size_t num_samples) {
 
   if (num_samples > 1)
     sample(num_samples - 1);
+  else {
+    std::cout << "Sampled placements grid:" << std::endl;
+    for (std::size_t i = 0; i < num_bins_x; ++i) {
+      for (std::size_t j = 0; j < num_bins_y; ++j) {
+        std::cout << count_xy.at(i * num_bins_y + j);
+        if (j + 1 < num_bins_y)
+          std::cout << " ";
+        else
+          std::cout << std::endl;
+      }
+    }
+    std::cout << std::endl;
+  }
 }
 
 void MoveitTampProblem::SupportingSurface::sample() {
@@ -2018,8 +2328,8 @@ void MoveitTampProblem::SupportingSurface::sample() {
   std::vector<double> intervals_x(num_bins + 1), intervals_y(num_bins + 1), intervals_yaw(num_bins + 1);
   double x, y, yaw;
   for (unsigned int i = 0; i <= num_bins; ++i) {
-    intervals_x.at(i) = 0.05 + min_(0) + (max_(0) - min_(0) - 2 * 0.05) * double(i) / double(num_bins);
-    intervals_y.at(i) = 0.05 + min_(1) + (max_(1) - min_(1) - 2 * 0.05) * double(i) / double(num_bins);
+    intervals_x.at(i) = 0.025 + min_(0) + (max_(0) - min_(0) - 2 * 0.025) * double(i) / double(num_bins);
+    intervals_y.at(i) = 0.025 + min_(1) + (max_(1) - min_(1) - 2 * 0.025) * double(i) / double(num_bins);
     intervals_yaw.at(i) = -M_PI + 2. * M_PI * double(i) / double(num_bins);
   }
   for (const auto &placement : placements_) {
