@@ -81,6 +81,7 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   discretization_ = nh_.param("discretization_size", 0.05);
   padding_ = nh_.param("sampling_padding", 0.025);
   exclude_fronted_locations_ = nh_.param("exclude_fronted_locations", false);
+  block_misplaced_in_goal_ = nh_.param("block_misplaced_in_goal", false);
   goal_region_ = nh_.param("goal_region", true);
   tf_broadcaster_.sendTransform(tf::StampedTransform(tf::Transform(), ros::Time::now(), common_reference_,
                                                      move_group_interface_.getPlanningFrame()));
@@ -657,18 +658,40 @@ void MoveitTampProblem::LoadLocations() {
 
     for (size_t k = 0; k < object.second.surfaces_.size(); k++) {
       const auto &surface = object.second.surfaces_.at(k);
-
+      //TODO Solve issue with base locations 
       std::vector<Eigen::Affine3d> local_poses;
-      local_poses.push_back(Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)),
+      // local_poses.push_back(Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)),
+      //                                            surface.max_(1) + 0.1 + robot_workspace_min_radius_, 0) *
+      //                       Eigen::AngleAxisd(1.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      // local_poses.push_back(
+      //     Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)), surface.max_(1) + 0.1 + 0.2, 0) *
+      //     Eigen::AngleAxisd(1.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      // local_poses.push_back(Eigen::Translation3d(surface.max_(0) + 0.1 + robot_workspace_min_radius_,
+      //                                            0.5 * (surface.min_(1) + surface.max_(1)), 0) *
+      //                       Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()));
+      // local_poses.push_back(Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)),
+      //                                            surface.min_(1) - 0.1 - robot_workspace_min_radius_, 0) *
+      //                       Eigen::AngleAxisd(0.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      // local_poses.push_back(
+      //     Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)), surface.min_(1) - 0.1 - 0.2, 0) *
+      //     Eigen::AngleAxisd(0.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      // local_poses.push_back(Eigen::Translation3d(surface.min_(0) - 0.1 - robot_workspace_min_radius_,
+      //                                            0.5 * (surface.min_(1) + surface.max_(1)), 0) *
+      //                       Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()));
+
+      local_poses.push_back(Eigen::Translation3d(surface.min_(0) + 0.3 * (surface.max_(0) - surface.min_(0)),
                                                  surface.max_(1) + 0.1 + robot_workspace_min_radius_, 0) *
                             Eigen::AngleAxisd(1.5 * M_PI, Eigen::Vector3d::UnitZ()));
-      local_poses.push_back(
-          Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)), surface.max_(1) + 0.1 + 0.2, 0) *
-          Eigen::AngleAxisd(1.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      local_poses.push_back(Eigen::Translation3d(surface.min_(0) + 0.7 * (surface.max_(0) - surface.min_(0)),
+                                                 surface.max_(1) + 0.1 + robot_workspace_min_radius_, 0) *
+                            Eigen::AngleAxisd(1.5 * M_PI, Eigen::Vector3d::UnitZ()));
       local_poses.push_back(Eigen::Translation3d(surface.max_(0) + 0.1 + robot_workspace_min_radius_,
                                                  0.5 * (surface.min_(1) + surface.max_(1)), 0) *
                             Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()));
-      local_poses.push_back(Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)),
+      local_poses.push_back(Eigen::Translation3d(surface.min_(0) + 0.3 * (surface.max_(0) - surface.min_(0)),
+                                                 surface.min_(1) - 0.1 - robot_workspace_min_radius_, 0) *
+                            Eigen::AngleAxisd(0.5 * M_PI, Eigen::Vector3d::UnitZ()));
+      local_poses.push_back(Eigen::Translation3d(surface.min_(0) + 0.7 * (surface.max_(0) - surface.min_(0)),
                                                  surface.min_(1) - 0.1 - robot_workspace_min_radius_, 0) *
                             Eigen::AngleAxisd(0.5 * M_PI, Eigen::Vector3d::UnitZ()));
       local_poses.push_back(
@@ -805,7 +828,7 @@ void MoveitTampProblem::AdaptativeSampling(const State *const state) {
 
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
   AddCurrentObjectsToPlacements(casted_state->GetObjectPoses());
-// std::cout<< "There are "<<goal_positions_.size()<<" goal positions"<<std::endl;
+  // std::cout<< "There are "<<goal_positions_.size()<<" goal positions"<<std::endl;
   // Add Non-Occupied target poses
   for (const auto &target_pose : goal_positions_) {
     // std::cout<<"target pose "<<target_pose.first<<std::endl;
@@ -1592,7 +1615,11 @@ Cases:
           bool found = false;
           auto it = obj_poses.begin();
           while (!found && it != obj_poses.end()) {
-            found = OnCircle(placement_pos, gripper_semiamplitude_, it->translation());
+            // TODO Solve semiamplitude issue
+            // found = OnCircle(placement_pos, gripper_semiamplitude_, it->translation());
+            found = OnCircle(placement_pos,
+                             (casted_state->GetAttatchedObject().find("red") != std::string::npos) ? 0.12 : 0.045,
+                             it->translation());
             if (!found)
               ++it;
           }
@@ -1608,7 +1635,7 @@ Cases:
             // std::cout << "creating PlaceAction" << std::endl;
             auto action = new PlaceAction(attached_object->first, joint_goal,
                                           object.second.pose_ * placement * stable_object_pose);
-            if (!lazy&&!IsActionValid(state, action)) {
+            if (!lazy && !IsActionValid(state, action)) {
               delete action;
               continue;
             }
@@ -1903,7 +1930,7 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
   start_state_sketch_features_.n = casted_state->GetMinObstructingObjects();
   start_state_sketch_features_.s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
   // TODO: should only be in the monotonic case
-  if (!goal_positions_.empty()) {
+  if (block_misplaced_in_goal_ && !goal_positions_.empty()) {
     std::cout << "checking objects already in goal" << std::endl;
     const auto object_poses = casted_state->GetObjectPoses();
     for (auto const &goal : goal_positions_) {
@@ -1958,7 +1985,6 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
     active_sketch_rule_ = MoveitTampProblem::PLACE_OBJECT;
   }
   return true;
-
 }
 
 void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool compute_s) const {
@@ -2046,11 +2072,10 @@ void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool co
 }
 
 std::size_t MoveitTampProblem::BlockingObjectsPlace(MoveitTampState const *const state,
-                                                       const Eigen::Affine3d &placement_pose,
-                                                       const Eigen::Affine3d &grasp,
-                                                       const std::vector<Eigen::Affine3d> &sops,
-                                                       const std::string &misplaced_object_name,
-                                                       const std::size_t max_num_blocking_objects) const {
+                                                    const Eigen::Affine3d &placement_pose, const Eigen::Affine3d &grasp,
+                                                    const std::vector<Eigen::Affine3d> &sops,
+                                                    const std::string &misplaced_object_name,
+                                                    const std::size_t max_num_blocking_objects) const {
   std::size_t min_num_blocking_objects = max_num_blocking_objects;
   for (const auto &robot_pose : base_locations_) {
     if (min_num_blocking_objects == 0)

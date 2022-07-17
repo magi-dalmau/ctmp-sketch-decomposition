@@ -411,27 +411,14 @@ void NonMonotonicTampProblem::ComputeStateSketchFeatures(State *const state) {
 
   bool found_misplaced_green = false;
   for (std::size_t i = 0; i < objects_.size(); ++i) {
-    if (object_names_.at(i).find("green") == std::string::npos) {
+    if (!objects_.at(object_names_.at(i)).moveable_ || object_names_.at(i).find("green") == std::string::npos) {
       continue;
     }
-    if (casted_state->GetAttatchedObject() != object_names_.at(i) &&
-        Misplaced(object_names_.at(i), casted_state->GetObjectPoses().at(i))) {
+    if (Misplaced(object_names_.at(i), casted_state->GetObjectPoses().at(i))) {
       found_misplaced_green = true;
       break;
-    }
-    if (casted_state->GetAttatchedObject() == object_names_.at(i)) {
-      const auto &misplaced_object = objects_.at(casted_state->GetAttatchedObject());
-      auto target_pose =
-          goal_positions_.find("target" + misplaced_object.name_.substr(misplaced_object.name_.find("_")));
-      if (target_pose != goal_positions_.end()) {
-        const std::size_t num_blocking_objects = BlockingObjectsPlace(
-            casted_state, Eigen::Affine3d(Eigen::Translation3d(target_pose->second)), *casted_state->GetGrasp(),
-            misplaced_object.stable_object_poses_, misplaced_object.name_, 1);
-        if (num_blocking_objects > 0) {
-          found_misplaced_green = true;
-          break;
-        }
-      }
+    } else {
+      objects_.at(object_names_.at(i)).moveable_ = false;
     }
   }
   only_green_goals_ = found_misplaced_green;
@@ -466,6 +453,10 @@ void NonMonotonicTampProblem::SetMisplacedObjects(MoveitTampState *const state) 
       }
     }
   }
+  // std::cout << "Misplaced are";
+  // for (const auto &obj : state_misplaced_objects) {
+  //   std::cout << " " << object_names_.at(obj);
+  // } std::cout << std::endl;
   state->SetMisplacedObjects(state_misplaced_objects);
 }
 

@@ -134,8 +134,6 @@ protected:
                      const std::string &attached_object, std::size_t &state_hash, std::size_t &state_local_hash,
                      std::vector<std::size_t> &on_workspace_objects, std::vector<std::size_t> &features_hashes) const;
 
-  
-
   // Test only
   void AddTestCollision(); // TEST ONLY
 
@@ -237,8 +235,7 @@ protected:
   double blocking_object_distance_threshold_;
   double discretization_, padding_;
   bool exclude_fronted_locations_;
- 
-
+  bool block_misplaced_in_goal_;
   std::unordered_map<std::size_t, std::vector<Action *>> discovered_valid_actions_;
   std::map<std::string, Eigen::Vector3d> goal_positions_;
   double goal_tolerance_radius_;

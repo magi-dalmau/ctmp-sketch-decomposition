@@ -13,29 +13,35 @@
     <node name="test_tiago_problem" pkg="ros_tamp" type="ros_tamp_test_tiago_problem" output="screen">
         <param name="lazy" type="bool" value="true" />
         <!-- <param name="problem_name" type="string" value="pb_3" />
-        <param name="goal_region" type="bool" value="true" /> -->
-        <!-- <param name="problem_name" type="string" value="pb_4" />
-        <param name="goal_region" type="bool" value="false" /> -->
-
-        <param name="problem_name" type="string" value="pb_3_3tab_25obj_5goal" /> 
         <param name="goal_region" type="bool" value="true" />
-   <!-- <param name="problem_name" type="string" value="pb_3_1tab_20obj_2goal" />
-        <param name="goal_region" type="bool" value="false" /> -->
+     <param name="block_misplaced_in_goal" type="bool" value="false" /> -->
+        <param name="problem_name" type="string" value="pb_4" />
+        <param name="goal_region" type="bool" value="false" />
+        <param name="block_misplaced_in_goal" type="bool" value="false" />
+
+        <!-- <param name="problem_name" type="string" value="pb_3_3tab_25obj_5goal" /> 
+        <param name="goal_region" type="bool" value="true" />
+         <param name="block_misplaced_in_goal" type="bool" value="false" />
+     -->
+        <!-- <param name="problem_name" type="string" value="pb_3_1tab_20obj_2goal" />
+        <param name="goal_region" type="bool" value="false" /> 
+     <param name="block_misplaced_in_goal" type="bool" value="true" />-->
+
 
         <param name="planning_group" type="string" value="arm_torso" />
         <param name="locations_amount" type="int" value="18" />
         <param name="min_base_allowed_distance" type="double" value="1.6" />
         <!-- <param name="min_base_allowed_distance" type="double" value="1.5" /> -->
-        <param name="exclude_fronted_locations" type="bool" value="false"/>
-        <param name="central_bases" type="bool" value="false"/>
+        <param name="exclude_fronted_locations" type="bool" value="false" />
+        <param name="central_bases" type="bool" value="false" />
 
-        <!-- <param name="robot_workspace_min_radius" type="double" value="0.395" /> -->
+        <param name="robot_workspace_min_radius" type="double" value="0.395" />
         <param name="robot_workspace_max_radius" type="double" value="0.795" />
-        <param name="robot_workspace_min_radius" type="double" value="0.5" />
+        <!-- <param name="robot_workspace_min_radius" type="double" value="0.5" /> -->
         <!--<param name="robot_workspace_max_radius" type="double" value="0.795" /> -->
 
         <param name="num_placements" type="int" value="50" />
-        <param name="placements_per_table_adaptative_sampling_" type="int" value="3" />
+        <param name="placements_per_table_adaptative_sampling_" type="int" value="7" />
         <param name="discretization_size" type="double" value="0.1" />
         <param name="sampling_padding" type="double" value="0.02" />
 
@@ -44,15 +50,15 @@
         <param name="avoid_collisions_in_IK" type="bool" value="true" />
         <param name="rviz_visualization" type="bool" value="true" />
         <param name="num_sops" type="int" value="4" />
-        <param name="k_max" type="int" value="2" />
+        <param name="k_max" type="int" value="1" />
         <!-- <param name="blocking_object_distance_threshold" type="double" value="0.24" /> -->
         <param name="blocking_object_distance_threshold" type="double" value="0.12" />
         <!-- <param name="blocking_object_distance_threshold" type="double" value="0.15" /> -->
 
 
         <param name="reuse_expansions" type="bool" value="true" />
-        <!-- <param name="gripper_semiamplitude" type="double" value="0.12" />  -->
-        <param name="gripper_semiamplitude" type="double" value="0.045" /> 
+        <param name="gripper_semiamplitude" type="double" value="0.12" />
+        <!-- <param name="gripper_semiamplitude" type="double" value="0.045" />  -->
         <!-- gripper semiamplitude 0.12 instead 0.045 needed for non-monotonic probl -->
         <!-- region goals; //TODO use yaml file-->
         <!-- <param name="region_1" type="string" value="table3" />
