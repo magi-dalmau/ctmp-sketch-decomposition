@@ -658,7 +658,7 @@ void MoveitTampProblem::LoadLocations() {
 
     for (size_t k = 0; k < object.second.surfaces_.size(); k++) {
       const auto &surface = object.second.surfaces_.at(k);
-      //TODO Solve issue with base locations 
+      // TODO Solve issue with base locations
       std::vector<Eigen::Affine3d> local_poses;
       // local_poses.push_back(Eigen::Translation3d(0.5 * (surface.min_(0) + surface.max_(0)),
       //                                            surface.max_(1) + 0.1 + robot_workspace_min_radius_, 0) *

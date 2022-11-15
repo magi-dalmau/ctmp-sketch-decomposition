@@ -1,0 +1,27 @@
+FILE: /ros_ws/src/tiago_moveit_config/config/srdf/tiago_pal-gripper_schunk-ft.srdf
+    ADDED:
+            <group_state name="home" group="arm_torso">
+                <joint name="torso_lift_joint" value="0.349908365757701" />
+                <joint name="arm_1_joint" value="0.08886820063711626" />
+                <joint name="arm_2_joint" value="0.035885547316525906" />
+                <joint name="arm_3_joint" value="-2.799176661809888" />
+                <joint name="arm_4_joint" value="1.5379210924065916" />
+                <joint name="arm_5_joint" value="0.8614694762778718" />
+                <joint name="arm_6_joint" value="-0.8948474111586892" />
+                <joint name="arm_7_joint" value="1.0764951904142515" />
+            </group_state>
+            <group_state name="open" group="gripper">
+                <joint name="gripper_left_finger_joint" value="0.045" />
+                <joint name="gripper_right_finger_joint" value="0.045" />        
+            </group_state>
+            <group_state name="grasp" group="gripper">
+                <joint name="gripper_left_finger_joint" value="0.025" />
+                <joint name="gripper_right_finger_joint" value="0.025" />
+            </group_state>
+FILE:/ros_ws/src/tiago_moveit_config/config/fake_controllers/fake_controllers_pal-gripper_schunk-ft.yaml
+    ADDED:
+            initial:  # Define initial robot poses.
+                - group: arm_torso
+                    pose: home
+                - group: gripper
+                    pose: open 

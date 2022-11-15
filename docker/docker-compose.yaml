@@ -5,7 +5,8 @@ services:
     container_name: "tamp-core"
     #ports:
      # - "6603:3306" 
-    image: tamp-core-dev-img:latest    
+    #image: tamp-core-dev-img:latest   
+    image: tamp-core-dev-img:v2
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ~/.xauth_docker/share:/tmp/xauth

@@ -1,0 +1,6 @@
+<launch>
+<arg name="end_effector"  default="pal-gripper"/>
+<include file="$(find tiago_moveit_config)/launch/demo.launch">   
+    <arg name="end_effector" value="$(arg end_effector)"/>    
+  </include>
+</launch>
