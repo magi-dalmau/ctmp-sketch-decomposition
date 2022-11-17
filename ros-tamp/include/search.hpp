@@ -174,7 +174,7 @@ protected:
   };
   virtual bool Prune(Node *const node) { return false; }
   virtual void ManagePruned(Node *const node) {
-    std::cout << "ManagePruned Search" << std::endl;
+    // std::cout << "ManagePruned Search" << std::endl;
     delete node;
   }
   virtual void ManageOrphan(Node *const node){};

@@ -1350,6 +1350,7 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
   auto casted_state = dynamic_cast<MoveitTampState *>(state_copy);
   bool H = casted_state->HasObjectAttached();
   std::size_t m, n, s;
+  // bool F;
 
   switch (active_sketch_rule_) {
   case MoveitTampProblem::PICK_MISPLACED_OBJECT:
@@ -1359,10 +1360,20 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
     }
     SetMisplacedObjects(casted_state);
     m = casted_state->GetNumOfMisplacedObjects();
-    if (m < start_state_sketch_features_.m) {
+
+    // F = !AllGoalRegionBlockMisplaced(casted_state->GetAttatchedObject(), casted_state);
+    // if (m < start_state_sketch_features_.m) {
+    //   std::cout << "Stopped in br: Grasped object is: " << casted_state->GetAttatchedObject() 
+    //   << " F: " << F
+    //             << " m_init, m_current: " << start_state_sketch_features_.m << "," << m << std::endl;
+    //   char c;
+    //   std::cin >> c;
+    // }
+    if (m < start_state_sketch_features_.m ) {
+
       std::cout << "PICK_MISPLACED_OBJECT SUBGOAL FOUND" << std::endl;
-      std::cout << "H is now: " << H << " and m decremented from " << start_state_sketch_features_.m << " to " << m
-                << std::endl;
+      std::cout << "H is now: " << H << "F is now: " << true << " and m decremented from "
+                << start_state_sketch_features_.m << " to " << m << std::endl;
       delete state_copy;
       return true;
     } else {
@@ -1391,7 +1402,7 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
     }
     break;
 
-  case MoveitTampProblem::PLACE_OBJECT:
+  case MoveitTampProblem::PLACE_OBJECT_FREE:
     if (H) {
       delete state_copy;
       return false;
@@ -1406,11 +1417,37 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
     n = casted_state->GetMinObstructingObjects();
     s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
     if (n == start_state_sketch_features_.n && s == start_state_sketch_features_.s) {
-      std::cout << "PLACE_OBJECT SUBGOAL FOUND" << std::endl;
+      std::cout << "PLACE_OBJECT_FREE SUBGOAL FOUND" << std::endl;
       std::cout << "H is now: " << H
                 << " and features m,n,s keep its values (start values: " << start_state_sketch_features_.m << ", "
                 << start_state_sketch_features_.n << ", " << start_state_sketch_features_.s << ") (end values: " << m
                 << ", " << n << ", " << s << ")" << std::endl;
+      delete state_copy;
+      return true;
+    } else {
+      delete state_copy;
+      return false;
+    }
+    break;
+  case MoveitTampProblem::PLACE_OBJECT_BLOCKED:
+    if (H) {
+      delete state_copy;
+      return false;
+    }
+    SetMisplacedObjects(casted_state);
+    // m = casted_state->GetNumOfMisplacedObjects();
+    // if (m != start_state_sketch_features_.m) {
+    //   delete state_copy;
+    //   return false;
+    // }
+    SetBlockingObjects(casted_state, true);
+    n = casted_state->GetMinObstructingObjects();
+    s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
+    if (n == start_state_sketch_features_.n && s == start_state_sketch_features_.s) {
+      std::cout << "PLACE_OBJECT_BLOCKED SUBGOAL FOUND" << std::endl;
+      std::cout << "H is now: " << H
+                << " and features n,s keep its values (start values: " << start_state_sketch_features_.n << ", "
+                << start_state_sketch_features_.s << ") (end values: " << n << ", " << s << ")" << std::endl;
       delete state_copy;
       return true;
     } else {
@@ -1929,6 +1966,12 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
   start_state_sketch_features_.m = casted_state->GetNumOfMisplacedObjects();
   start_state_sketch_features_.n = casted_state->GetMinObstructingObjects();
   start_state_sketch_features_.s = casted_state->GetSumMinObjectsObstructingMisplacedObjects();
+  if (start_state_sketch_features_.H) {
+    start_state_sketch_features_.F = !AllGoalRegionBlockMisplaced(casted_state->GetAttatchedObject(), casted_state);
+  } else {
+    start_state_sketch_features_.F = false;
+  }
+
   // TODO: should only be in the monotonic case
   if (block_misplaced_in_goal_ && !goal_positions_.empty()) {
     std::cout << "checking objects already in goal" << std::endl;
@@ -1957,7 +2000,7 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
             << "\nStart state features are:"
             << " H: " << start_state_sketch_features_.H << " m: " << start_state_sketch_features_.m
             << " n: " << start_state_sketch_features_.n << " s: " << start_state_sketch_features_.s
-            << "\nThe selected sketch is: " << std::endl;
+            << " F: " << start_state_sketch_features_.F << "\nThe selected sketch is: " << std::endl;
 
   if (!start_state_sketch_features_.H) {
     if (start_state_sketch_features_.m == 0) {
@@ -1980,9 +2023,13 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
       throw std::runtime_error("Malformed sketch feature num misplaced objects");
     }
   } else {
-    std::cout << "PLACE_OBJECT" << std::endl;
-
-    active_sketch_rule_ = MoveitTampProblem::PLACE_OBJECT;
+    if (start_state_sketch_features_.F) {
+      std::cout << "PLACE_OBJECT_FREE" << std::endl;
+      active_sketch_rule_ = MoveitTampProblem::PLACE_OBJECT_FREE;
+    } else {
+      std::cout << "PLACE_OBJECT_BLOCKED" << std::endl;
+      active_sketch_rule_ = MoveitTampProblem::PLACE_OBJECT_BLOCKED;
+    }
   }
   return true;
 }
@@ -2077,6 +2124,7 @@ std::size_t MoveitTampProblem::BlockingObjectsPlace(MoveitTampState const *const
                                                     const std::string &misplaced_object_name,
                                                     const std::size_t max_num_blocking_objects) const {
   std::size_t min_num_blocking_objects = max_num_blocking_objects;
+  std::vector<Eigen::Affine3d> extra_dummy_poses;
   for (const auto &robot_pose : base_locations_) {
     if (min_num_blocking_objects == 0)
       break;
@@ -2087,10 +2135,10 @@ std::size_t MoveitTampProblem::BlockingObjectsPlace(MoveitTampState const *const
     for (const auto &sop : sops) {
       if (min_num_blocking_objects == 0)
         break;
-
+      std::vector<std::string> blocking_objects_names;
       std::size_t num_blocking_objects =
           BlockingObjects(state, placement_pose * sop, robot_pose, placement_pose * sop * grasp, misplaced_object_name,
-                          min_num_blocking_objects);
+                          min_num_blocking_objects, blocking_objects_names, extra_dummy_poses);
       if (num_blocking_objects < min_num_blocking_objects)
         min_num_blocking_objects = num_blocking_objects;
     }
@@ -2105,15 +2153,18 @@ std::size_t MoveitTampProblem::BlockingObjectsPick(MoveitTampState const *const 
                                                    const std::string &misplaced_object_name,
                                                    const std::size_t max_num_blocking_objects) const {
   std::size_t min_num_blocking_objects = max_num_blocking_objects;
+  std::vector<Eigen::Affine3d> extra_dummy_poses;
+
   for (const auto &robot_pose : base_locations_) {
     if (min_num_blocking_objects == 0)
       break;
 
     if (!OnWorkspace(robot_pose, object_pose))
       continue;
-
+    std::vector<std::string> blocking_objects_names;
     std::size_t num_blocking_objects =
-        BlockingObjects(state, object_pose, robot_pose, gripper_pose, misplaced_object_name, min_num_blocking_objects);
+        BlockingObjects(state, object_pose, robot_pose, gripper_pose, misplaced_object_name, min_num_blocking_objects,
+                        blocking_objects_names, extra_dummy_poses);
 
     if (num_blocking_objects < min_num_blocking_objects)
       min_num_blocking_objects = num_blocking_objects;
@@ -2125,7 +2176,9 @@ std::size_t MoveitTampProblem::BlockingObjectsPick(MoveitTampState const *const 
 std::size_t MoveitTampProblem::BlockingObjects(MoveitTampState const *const state, const Eigen::Affine3d &target_pose,
                                                const Eigen::Affine3d &robot_pose, const Eigen::Affine3d &gripper_pose,
                                                const std::string &misplaced_object_name,
-                                               const std::size_t max_num_blocking_objects) const {
+                                               const std::size_t max_num_blocking_objects,
+                                               std::vector<std::string> &blocking_objects_names,
+                                               std::vector<Eigen::Affine3d> &extra_poses) const {
   Eigen::Vector3d g = gripper_pose.translation();
   Eigen::Vector3d r = robot_pose.translation() - g;
   r(2) = 0;
@@ -2149,15 +2202,118 @@ std::size_t MoveitTampProblem::BlockingObjects(MoveitTampState const *const stat
 
     if (dist < blocking_object_distance_threshold_) {
       num_blocking_objects++;
+      blocking_objects_names.push_back(obstructing_object.second.name_);
+
     } else {
       dist = (w - std::min(std::max(0.0, w.dot(o) / o.squaredNorm()), 1.0) * o).norm();
 
       if (dist < blocking_object_distance_threshold_)
         num_blocking_objects++;
+      blocking_objects_names.push_back(obstructing_object.second.name_);
+    }
+  }
+  for (const auto &pose : extra_poses) {
+    if (num_blocking_objects >= max_num_blocking_objects)
+      break;
+    Eigen::Vector3d w = pose.translation() - g;
+    w(2) = 0;
+
+    double dist = (w - std::min(std::max(0.0, w.dot(r) / r.squaredNorm()), 1.0) * r).norm();
+
+    if (dist < blocking_object_distance_threshold_) {
+      num_blocking_objects++;
+      blocking_objects_names.push_back("goal");
+
+    } else {
+      dist = (w - std::min(std::max(0.0, w.dot(o) / o.squaredNorm()), 1.0) * o).norm();
+
+      if (dist < blocking_object_distance_threshold_)
+        num_blocking_objects++;
+      blocking_objects_names.push_back("goal");
     }
   }
 
   return num_blocking_objects;
+}
+
+bool MoveitTampProblem::AllGoalRegionBlockMisplaced(const std::string &object_name,
+                                                    MoveitTampState const *const state) const {
+  // Get sampled goal poses for the object of interest
+  std::vector<Eigen::Affine3d> sampled_goal_poses;
+  for (const auto &object : objects_) {
+    if (object.first == object_name)
+      continue;
+    for (const auto &surface : object.second.surfaces_) {
+      for (const auto &placement : surface.placements_) {
+        if (!Misplaced(object_name, object.second.pose_ * placement)) {
+          sampled_goal_poses.push_back(object.second.pose_ * placement);
+        }
+      }
+    }
+  }
+  if (sampled_goal_poses.size() == 0) {
+    std::cout << "This object doesnt have goal targets" << std::endl;
+    return true;
+  }
+  // Check if at least one goal poses does not block any misplaced object
+  // const auto grasped_object = state->GetAttatchedObject();
+  for (const auto goal_pose : sampled_goal_poses) {
+    if (GoalDoesntBlockAnyMisplaced(goal_pose, object_name, state)) {
+      return false; // RETURN THAT AT LEAST ONE GOAL POSE IS FREE
+    }
+  }
+  return true; // RETURN THAT ALL GOAL POSE BLOCK AT LEAST ONE MISPLACED
+}
+bool MoveitTampProblem::GoalDoesntBlockAnyMisplaced(const Eigen::Affine3d &goal_pose, const std::string &object_name,
+                                                    MoveitTampState const *const state) const {
+  // Iterate Misplaced objects
+  std::vector<Eigen::Affine3d> goal_poses;
+  goal_poses.push_back(goal_pose);
+  for (const auto misplaced_object_index : state->GetMisplacedObjects()) {
+    const auto &misplaced_object = objects_.at(object_names_.at(misplaced_object_index));
+    if (object_name == misplaced_object.name_)
+      continue;
+    std::size_t min_num_blocking_objects = std::numeric_limits<std::size_t>::max();
+    bool goal_is_blocking = false;
+
+    const auto object_pose = state->GetObjectPoses().at(misplaced_object_index);
+    // Iterate misplaced grasps
+    for (const auto &grasp : misplaced_object.grasps_) {
+      const auto gripper_pose = object_pose * grasp;
+      // if (min_num_object_blocking_objects == 0)
+      if (min_num_blocking_objects == 0)
+        break;
+
+      // Iterate Base Location (check if on WS)
+      for (const auto &robot_pose : base_locations_) {
+        if (min_num_blocking_objects == 0)
+          break;
+
+        if (!OnWorkspace(robot_pose, object_pose))
+          continue;
+        std::vector<std::string> blocking_objects_names;
+        std::size_t num_blocking_objects =
+            BlockingObjects(state, object_pose, robot_pose, gripper_pose, misplaced_object.name_,
+                            min_num_blocking_objects, blocking_objects_names, goal_poses);
+        // TODO: goal_is_blocking s'ha de calcular mirant el nom podria ser del tipus object-name_goal
+        if (num_blocking_objects < min_num_blocking_objects) {
+          min_num_blocking_objects = num_blocking_objects;
+          goal_is_blocking = (std::find(blocking_objects_names.begin(), blocking_objects_names.end(), "goal") !=
+                              blocking_objects_names.end());
+
+        } else if (num_blocking_objects == min_num_blocking_objects && goal_is_blocking) {
+          goal_is_blocking = (std::find(blocking_objects_names.begin(), blocking_objects_names.end(), "goal") !=
+                              blocking_objects_names.end());
+        }
+      }
+    }
+    if (goal_is_blocking) {
+      std::cout << "Object " << object_name << " goal pose: " << goal_pose.translation().transpose()
+                << " blocks misplaced " << misplaced_object.name_ << std::endl;
+      return false;
+    }
+  }
+  return true;
 }
 
 void MoveitTampProblem::PrintStatistics() const {
@@ -2241,8 +2397,10 @@ bool MoveitTampProblem::SupportingSurface::on(const Eigen::Vector3d &position) c
 //     count_y.at(std::min(num_bins - 1, (unsigned int)std::floor((local_pose.translation()(1) - min_(1)) /
 //                                                                (max_(1) - min_(1)) * double(num_bins))))++;
 //     count_yaw.at(
-//         std::min(num_bins - 1, (unsigned int)std::floor((atan2(local_pose.matrix()(1, 0) - local_pose.matrix()(0, 1),
-//                                                                local_pose.matrix()(0, 0) + local_pose.matrix()(1, 1))
+//         std::min(num_bins - 1, (unsigned int)std::floor((atan2(local_pose.matrix()(1, 0) - local_pose.matrix()(0,
+//         1),
+//                                                                local_pose.matrix()(0, 0) + local_pose.matrix()(1,
+//                                                                1))
 //                                                                +
 //                                                          M_PI) /
 //                                                         (2. * M_PI) * double(num_bins))))++;
@@ -2333,17 +2491,17 @@ void MoveitTampProblem::SupportingSurface::sample(std::size_t num_samples) {
   if (num_samples > 1)
     sample(num_samples - 1);
   else {
-    std::cout << "Sampled placements grid:" << std::endl;
-    for (std::size_t i = 0; i < num_bins_x; ++i) {
-      for (std::size_t j = 0; j < num_bins_y; ++j) {
-        std::cout << count_xy.at(i * num_bins_y + j);
-        if (j + 1 < num_bins_y)
-          std::cout << " ";
-        else
-          std::cout << std::endl;
-      }
-    }
-    std::cout << std::endl;
+    // std::cout << "Sampled placements grid:" << std::endl;
+    // for (std::size_t i = 0; i < num_bins_x; ++i) {
+    //   for (std::size_t j = 0; j < num_bins_y; ++j) {
+    //     std::cout << count_xy.at(i * num_bins_y + j);
+    //     if (j + 1 < num_bins_y)
+    //       std::cout << " ";
+    //     else
+    //       std::cout << std::endl;
+    //   }
+    // }
+    // std::cout << std::endl;
   }
 }
 

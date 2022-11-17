@@ -89,8 +89,12 @@ protected:
 
   std::size_t BlockingObjects(MoveitTampState const *const state, const Eigen::Affine3d &target_pose,
                               const Eigen::Affine3d &robot_pose, const Eigen::Affine3d &gripper_pose,
-                              const std::string &misplaced_object_name,
-                              const std::size_t max_num_blocking_objects) const;
+                              const std::string &misplaced_object_name, const std::size_t max_num_blocking_objects,
+                              std::vector<std::string> &blocking_object_names,
+                              std::vector<Eigen::Affine3d> &extra_poses ) const;
+  bool AllGoalRegionBlockMisplaced(const std::string &object_name, MoveitTampState const *const state) const;
+  bool GoalDoesntBlockAnyMisplaced(const Eigen::Affine3d &goal_pose, const std::string &object_name,
+                                   MoveitTampState const *const state) const;
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
@@ -138,12 +142,13 @@ protected:
   void AddTestCollision(); // TEST ONLY
 
   // Classes
-  enum SketchRules { END, PICK_MISPLACED_OBJECT, PICK_OBSTRUCTING_OBJECT, PLACE_OBJECT };
+  enum SketchRules { END, PICK_MISPLACED_OBJECT, PICK_OBSTRUCTING_OBJECT, PLACE_OBJECT_FREE, PLACE_OBJECT_BLOCKED };
   struct SketchFeatures {
     std::size_t m;
     std::size_t n;
     std::size_t s;
     bool H;
+    bool F;
   };
 
   class BaseStateSpace {

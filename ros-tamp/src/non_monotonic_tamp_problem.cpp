@@ -410,20 +410,20 @@ void NonMonotonicTampProblem::ComputeStateSketchFeatures(State *const state) {
   auto casted_state = dynamic_cast<MoveitTampState *>(state);
 
   bool found_misplaced_green = false;
-  for (std::size_t i = 0; i < objects_.size(); ++i) {
-    if (!objects_.at(object_names_.at(i)).moveable_ || object_names_.at(i).find("green") == std::string::npos) {
-      continue;
-    }
-    if (Misplaced(object_names_.at(i), casted_state->GetObjectPoses().at(i))) {
-      found_misplaced_green = true;
-      break;
-    } else {
-      objects_.at(object_names_.at(i)).moveable_ = false;
-    }
-  }
+  // for (std::size_t i = 0; i < objects_.size(); ++i) {
+  //   if (!objects_.at(object_names_.at(i)).moveable_ || object_names_.at(i).find("green") == std::string::npos) {
+  //     continue;
+  //   }
+  //   if (Misplaced(object_names_.at(i), casted_state->GetObjectPoses().at(i))) {
+  //     found_misplaced_green = true;
+  //     break;
+  //   } else {
+  //     objects_.at(object_names_.at(i)).moveable_ = false;
+  //   }
+  // }
   only_green_goals_ = found_misplaced_green;
-  std::cout << "Only Green Goals: " << only_green_goals_ << " with grasped " << casted_state->GetAttatchedObject()
-            << std::endl;
+  // std::cout << "Only Green Goals: " << only_green_goals_ << " with grasped " << casted_state->GetAttatchedObject()
+            // << std::endl;
 
   SetMisplacedObjects(casted_state);
   SetBlockingObjects(casted_state, true);

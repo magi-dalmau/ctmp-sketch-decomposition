@@ -244,7 +244,7 @@ protected:
   };
 
   virtual void ManagePruned(Node *const node) override {
-    std::cout << "ManagePruned IWk" << std::endl;
+    // std::cout << "ManagePruned IWk" << std::endl;
 
     auto inserted = pruned_hash_table_.insert(std::make_pair(node->GetState()->GetHash(), node)).second;
     assert(inserted);
