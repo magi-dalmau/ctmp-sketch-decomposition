@@ -15,7 +15,8 @@
         <!-- <param name="problem_name" type="string" value="pb_3" />
         <param name="goal_region" type="bool" value="true" />
      <param name="block_misplaced_in_goal" type="bool" value="false" /> -->
-        <param name="problem_name" type="string" value="pb_4" />
+        <!-- <param name="problem_name" type="string" value="pb_4" /> -->
+        <param name="problem_name" type="string" value="blocks_world" />
         <param name="goal_region" type="bool" value="false" />
         <param name="block_misplaced_in_goal" type="bool" value="false" />
 

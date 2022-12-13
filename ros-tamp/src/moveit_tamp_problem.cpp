@@ -393,7 +393,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
     std::string mesh_name = object.mesh_.substr(0, object.mesh_.find_last_of('.'));
     display_object.mesh_resource =
         "file://" + filename.substr(0, filename.substr(0, filename.find_last_of('/')).find_last_of('/')) + "/meshes/" +
-        mesh_name + ".dae";
+    mesh_name + ".dae";
     // display_object.mesh_use_embedded_materials = true;
     // TODO #FUTURE MINOR:(magi.dalmau) solve color problem definition in files
     display_object.action = visualization_msgs::Marker::ADD;

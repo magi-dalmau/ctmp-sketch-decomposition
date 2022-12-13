@@ -63,6 +63,6 @@ add_executable(${CMAKE_PROJECT_NAME}_test_brfs src/test_brfs.cpp)
 add_dependencies(${CMAKE_PROJECT_NAME}_test_brfs ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${CMAKE_PROJECT_NAME}_test_brfs ${catkin_LIBRARIES})
 
-add_executable(${CMAKE_PROJECT_NAME}_test_tiago_problem src/test_tiago_problem.cpp src/moveit_tamp_problem.cpp src/cluttered_tamp_problem.cpp src/non_monotonic_tamp_problem.cpp) 
+add_executable(${CMAKE_PROJECT_NAME}_test_tiago_problem src/test_tiago_problem.cpp src/moveit_tamp_problem.cpp src/cluttered_tamp_problem.cpp src/non_monotonic_tamp_problem.cpp src/horizontal_blocks_world_tamp_problem.cpp) 
 add_dependencies(${CMAKE_PROJECT_NAME}_test_tiago_problem ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${CMAKE_PROJECT_NAME}_test_tiago_problem ${catkin_LIBRARIES})

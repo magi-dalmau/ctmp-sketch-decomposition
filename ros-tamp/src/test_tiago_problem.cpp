@@ -1,6 +1,7 @@
 #include <brfs.hpp>
 #include <cluttered_tamp_problem.hpp>
 #include <non_monotonic_tamp_problem.hpp>
+#include <horizontal_blocks_world_tamp_problem.hpp>
 #include <iostream>
 #include <iwk.hpp>
 #include <random>
@@ -34,7 +35,16 @@ int main(int argc, char **argv) {
         "/ros_ws/src/ros-tamp/benchmarkings/lagriffoul/problems/pb_4_non_monotonic/problem_definitions/" +
         problem_name + ".xml";
     problem = new NonMonotonicTampProblem(filename, planning_group, &nh);
-  } else {
+  }
+
+else if (problem_name.find("blocks_world") != std::string::npos) {
+  std::cout << "SELECTED PROBLEM TYPE BLOCKS WORLD" << std::endl;
+  const std::string filename =
+      "/ros_ws/src/ros-tamp/benchmarkings/pb_blocks_world/problem_definitions/" +
+      problem_name + ".xml";
+  problem = new BlocksWorldTampProblem(filename, planning_group, &nh);
+}
+  else {
     std::cout << "Unknown  problem type for name: " << problem_name << std::endl;
     return 0;
   }
