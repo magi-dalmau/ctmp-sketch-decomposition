@@ -19,9 +19,12 @@ NonMonotonicTampProblem::NonMonotonicTampProblem(const std::string &filename, co
     : MoveitTampProblem(filename, planning_group, nodehandle) {
   goal_tolerance_radius_ = nh_.param("goal_tolerance_radius_", 0.005);
   // Load world
-  
+
   LoadWorld(filename);
-std::cout<<"NUM OF TARGET GOALS IS: "<<goal_positions_.size()<<std::endl;
+  // for (const auto goal : goal_positions_){
+  //   std::cout<<"Goal : "<<goal.first<<" location : "<<goal.second.transpose()<<std::endl;
+  // }
+  std::cout << "NUM OF TARGET GOALS IS: " << goal_positions_.size() << std::endl;
   ROS_DEBUG("PROBLEM INITIALIZED");
 }
 
@@ -33,7 +36,8 @@ std::cout<<"NUM OF TARGET GOALS IS: "<<goal_positions_.size()<<std::endl;
 //   std::size_t num_sops = nh_.param("num_sops", 1);
 
 //   Eigen::Affine3d arm_tool_link_to_grasp_point_inv =
-//       (Eigen::Affine3d().fromPositionOrientationScale(Eigen::Vector3d(x_distance_arm_tool_link_to_grasping_point, 0, 0),
+//       (Eigen::Affine3d().fromPositionOrientationScale(Eigen::Vector3d(x_distance_arm_tool_link_to_grasping_point, 0,
+//       0),
 //                                                       Eigen::Quaterniond(0.7071068, 0.7071068, 0, 0),
 //                                                       Eigen::Vector3d(1, 1, 1)))
 //           .inverse();
@@ -107,7 +111,8 @@ std::cout<<"NUM OF TARGET GOALS IS: "<<goal_positions_.size()<<std::endl;
 //   robot_pose_ = robot_origin_;
 //   std::cout << "loaded robot origin" << std::endl;
 //   // PARSE OBJECTS
-//   for (auto obj = h_doc.FirstChildElement("problem").FirstChildElement("objects").FirstChildElement("obj").ToElement();
+//   for (auto obj =
+//   h_doc.FirstChildElement("problem").FirstChildElement("objects").FirstChildElement("obj").ToElement();
 //        obj; obj = obj->NextSiblingElement("obj"))
 
 //   {
@@ -194,7 +199,8 @@ std::cout<<"NUM OF TARGET GOALS IS: "<<goal_positions_.size()<<std::endl;
 //     // POPULATE SOPS
 //     for (auto sop = obj->FirstChildElement("sop"); sop; sop = sop->NextSiblingElement("sop")) {
 //       auto pose = Eigen::Affine3d().fromPositionOrientationScale(
-//           Eigen::Vector3d::Zero(), string2rot(sop->FirstChildElement("template")->GetText()), Eigen::Vector3d::Ones());
+//           Eigen::Vector3d::Zero(), string2rot(sop->FirstChildElement("template")->GetText()),
+//           Eigen::Vector3d::Ones());
 //       auto axis = string2vector(sop->FirstChildElement("axis")->GetText());
 //       for (unsigned int i = 0; i < num_sops; ++i)
 //         // TODO check rot*pos o pos*rot
@@ -226,8 +232,8 @@ std::cout<<"NUM OF TARGET GOALS IS: "<<goal_positions_.size()<<std::endl;
 //     display_object.type = visualization_msgs::Marker::MESH_RESOURCE;
 //     std::string mesh_name = object.mesh_.substr(0, object.mesh_.find_last_of('.'));
 //     display_object.mesh_resource =
-//         "file://" + filename.substr(0, filename.substr(0, filename.find_last_of('/')).find_last_of('/')) + "/meshes/" +
-//         mesh_name + ".dae";
+//         "file://" + filename.substr(0, filename.substr(0, filename.find_last_of('/')).find_last_of('/')) + "/meshes/"
+//         + mesh_name + ".dae";
 //     // display_object.mesh_use_embedded_materials = true;
 //     // TODO #FUTURE MINOR:(magi.dalmau) solve color problem definition in files
 //     display_object.action = visualization_msgs::Marker::ADD;
@@ -273,7 +279,8 @@ std::cout<<"NUM OF TARGET GOALS IS: "<<goal_positions_.size()<<std::endl;
 //       auto mesh = MeshMsgFromFile(display_object.mesh_resource);
 //       meshes_map.insert(std::make_pair(mesh_name, mesh));
 //       std::cout << "mesh lodaded" << std::endl;
-//       collision_object.meshes.at(0) = mesh; // note that the mesh vector is already initialized in the common operations
+//       collision_object.meshes.at(0) = mesh; // note that the mesh vector is already initialized in the common
+//       operations
 //     } else {
 //       collision_object.meshes.at(0) =
 //           mesh_it->second; // note that the mesh vector is already initialized in the common operations
@@ -312,7 +319,8 @@ std::cout<<"NUM OF TARGET GOALS IS: "<<goal_positions_.size()<<std::endl;
 //   display_object.type = visualization_msgs::Marker::MESH_RESOURCE;
 //   std::string mesh_name = object.mesh_.substr(0, object.mesh_.find_last_of('.'));
 //   display_object.mesh_resource = "file://" +
-//                                  filename.substr(0, filename.substr(0, filename.find_last_of('/')).find_last_of('/')) +
+//                                  filename.substr(0, filename.substr(0, filename.find_last_of('/')).find_last_of('/'))
+//                                  +
 //                                  "/meshes/" + mesh_name + ".dae";
 //   display_object.action = visualization_msgs::Marker::ADD;
 //   tf::poseEigenToMsg(Eigen::Affine3d::Identity(), display_object.pose);
@@ -423,13 +431,14 @@ void NonMonotonicTampProblem::ComputeStateSketchFeatures(State *const state) {
   // }
   only_green_goals_ = found_misplaced_green;
   // std::cout << "Only Green Goals: " << only_green_goals_ << " with grasped " << casted_state->GetAttatchedObject()
-            // << std::endl;
+  // << std::endl;
 
   SetMisplacedObjects(casted_state);
   SetBlockingObjects(casted_state, true);
 }
 
 void NonMonotonicTampProblem::SetMisplacedObjects(MoveitTampState *const state) const {
+  // std::cout << " Computing misplaced..." << std::endl;
   std::unordered_set<std::size_t> state_misplaced_objects;
   for (std::size_t i = 0; i < objects_.size(); ++i) {
     if (only_green_goals_ && object_names_.at(i).find("green") == std::string::npos) {
@@ -458,6 +467,7 @@ void NonMonotonicTampProblem::SetMisplacedObjects(MoveitTampState *const state) 
   //   std::cout << " " << object_names_.at(obj);
   // } std::cout << std::endl;
   state->SetMisplacedObjects(state_misplaced_objects);
+  // std::cout << " End misplaced compute" << std::endl;
 }
 
 bool NonMonotonicTampProblem::Misplaced(const std::string &name, const Eigen::Affine3d &pose) const {
@@ -468,9 +478,15 @@ bool NonMonotonicTampProblem::Misplaced(const std::string &name, const Eigen::Af
   }
   auto iter = goal_positions_.find("target" + name.substr(pos));
   if (iter != goal_positions_.end()) {
-    if (OnCircle(iter->second, goal_tolerance_radius_, pose.translation())) {
+    Eigen::Vector3d alternative(iter->second.x() + 0.04, iter->second.y(),
+                                iter->second.z() + 0.242); // TODO: Provisional per red objects girats al principi
+
+    if (OnCircle(iter->second, goal_tolerance_radius_, pose.translation()) ||
+        OnCircle(alternative, goal_tolerance_radius_, pose.translation())) {
       return false;
     } else {
+      // std::cout << "Object " << name << " is misplaced pose: " << pose.translation().transpose()
+      //           << " target: " << iter->second.transpose() << std::endl;
       return true;
     }
 
@@ -587,8 +603,8 @@ bool NonMonotonicTampProblem::Misplaced(const std::string &name, const Eigen::Af
 //       break;
 
 //     const auto &misplaced_object = objects_.at(object_names_.at(misplaced_object_index));
-//     auto target_pose = goal_positions_.find("target" + misplaced_object.name_.substr(misplaced_object.name_.find("_")));
-//     if (target_pose == goal_positions_.end())
+//     auto target_pose = goal_positions_.find("target" +
+//     misplaced_object.name_.substr(misplaced_object.name_.find("_"))); if (target_pose == goal_positions_.end())
 //       continue;
 
 //     if (state->GetAttatchedObject() == misplaced_object.name_) {
@@ -611,7 +627,8 @@ bool NonMonotonicTampProblem::Misplaced(const std::string &name, const Eigen::Af
 //           break;
 
 //         std::size_t num_blocking_objects = BlockingObjectsPick(state, object_pose, object_pose * grasp,
-//                                                                misplaced_object.name_, min_num_object_blocking_objects);
+//                                                                misplaced_object.name_,
+//                                                                min_num_object_blocking_objects);
 //         if (min_num_object_blocking_objects > num_blocking_objects) {
 //           num_blocking_objects +=
 //               BlockingObjectsPlace(state, Eigen::Affine3d(Eigen::Translation3d(target_pose->second)), grasp,

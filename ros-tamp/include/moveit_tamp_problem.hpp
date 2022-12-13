@@ -91,10 +91,11 @@ protected:
                               const Eigen::Affine3d &robot_pose, const Eigen::Affine3d &gripper_pose,
                               const std::string &misplaced_object_name, const std::size_t max_num_blocking_objects,
                               std::vector<std::string> &blocking_object_names,
-                              std::vector<Eigen::Affine3d> &extra_poses ) const;
+                              std::vector<Eigen::Affine3d> &extra_poses,const bool reduced_amplitude=false) const;
   bool AllGoalRegionBlockMisplaced(const std::string &object_name, MoveitTampState const *const state) const;
-  bool GoalDoesntBlockAnyMisplaced(const Eigen::Affine3d &goal_pose, const std::string &object_name,
-                                   MoveitTampState const *const state) const;
+  std::size_t NumMisplacedsBlockedByGoal(const Eigen::Affine3d &goal_pose, const std::string &object_name,
+                                         MoveitTampState const *const state,
+                                         const bool only_check_at_least_one_is_blocked=false) const;
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
