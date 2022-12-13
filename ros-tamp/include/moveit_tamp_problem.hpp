@@ -91,11 +91,11 @@ protected:
                               const Eigen::Affine3d &robot_pose, const Eigen::Affine3d &gripper_pose,
                               const std::string &misplaced_object_name, const std::size_t max_num_blocking_objects,
                               std::vector<std::string> &blocking_object_names,
-                              std::vector<Eigen::Affine3d> &extra_poses,const bool reduced_amplitude=false) const;
+                              std::vector<Eigen::Affine3d> &extra_poses, const bool reduced_amplitude = false) const;
   bool AllGoalRegionBlockMisplaced(const std::string &object_name, MoveitTampState const *const state) const;
   std::size_t NumMisplacedsBlockedByGoal(const Eigen::Affine3d &goal_pose, const std::string &object_name,
                                          MoveitTampState const *const state,
-                                         const bool only_check_at_least_one_is_blocked=false) const;
+                                         const bool only_check_at_least_one_is_blocked = false) const;
 
   // Manipulator movements related
   bool ComputeIK(const geometry_msgs::Pose &pose_goal, moveit_msgs::RobotState::_joint_state_type &joint_goal,
@@ -122,7 +122,7 @@ protected:
   bool DetachCollisionObject(const std::string &obj_id, const geometry_msgs::PoseStamped &placement_pose);
   bool OnWorkspace(const Eigen::Affine3d &robot_base_pose, const Eigen::Affine3d &target_pose) const;
   bool OnCircle(const Eigen::Vector3d &origin, const double radius, const Eigen::Vector3d &target) const;
-
+  bool IsGripperInValidRegion(const Eigen::Vector3d &gripper_position) const;
   moveit_msgs::CollisionObject GenerateMoveCollisionObjectMsg(const std::string &obj_id,
                                                               const geometry_msgs::Pose &new_pose,
                                                               const std::string &new_reference_frame);
@@ -191,6 +191,7 @@ protected:
   Hasher hasher_;
   bool reuse_expansions_;
   bool super_lazy_;
+  bool check_gripper_region_;
   ros::Publisher pub_placements_;
   ros::Publisher pub_locations_;
   ros::Publisher pub_objects_;

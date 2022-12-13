@@ -72,6 +72,9 @@ MoveitTampProblem::MoveitTampProblem(const std::string &filename, const std::str
   reused_valid_actions_ = 0;
   num_total_motion_plans_ = 0;
   num_successful_motion_plans_ = 0;
+  // TODO: Provisional until complit obstacles like splitter is checked in counting blocking objects/goals for
+  // restricting gripper positions
+  check_gripper_region_ = (filename.find("pb_4") != std::string::npos);
   // PARAMS
   reuse_expansions_ = nh_.param("reuse_expansions", false);
   blocking_object_distance_threshold_ = nh_.param("blocking_object_distance_threshold", 0.2);
@@ -1351,7 +1354,7 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
   auto casted_state = dynamic_cast<MoveitTampState *>(state_copy);
   bool H = casted_state->HasObjectAttached();
   std::size_t m, n, s;
-  // bool F;
+  bool F;
 
   switch (active_sketch_rule_) {
   case MoveitTampProblem::PICK_MISPLACED_OBJECT:
@@ -1361,7 +1364,6 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
     }
     SetMisplacedObjects(casted_state);
     m = casted_state->GetNumOfMisplacedObjects();
-
     // F = !AllGoalRegionBlockMisplaced(casted_state->GetAttatchedObject(), casted_state);
     // if (m < start_state_sketch_features_.m) {
     //   std::cout << "Stopped in br: Grasped object is: " << casted_state->GetAttatchedObject()
@@ -1371,12 +1373,18 @@ bool MoveitTampProblem::IsGoal(State const *const state) const {
     //   std::cin >> c;
     // }
     if (m < start_state_sketch_features_.m) {
+      F = !AllGoalRegionBlockMisplaced(casted_state->GetAttatchedObject(), casted_state);
+      if (F) {
+        std::cout << "PICK_MISPLACED_OBJECT SUBGOAL FOUND" << std::endl;
+        std::cout << "H is now: " << H << "F is now: " << true << " and m decremented from "
+                  << start_state_sketch_features_.m << " to " << m << std::endl;
+        delete state_copy;
+        return true;
+      } else {
+        delete state_copy;
+        return false;
+      }
 
-      std::cout << "PICK_MISPLACED_OBJECT SUBGOAL FOUND" << std::endl;
-      std::cout << "H is now: " << H << "F is now: " << true << " and m decremented from "
-                << start_state_sketch_features_.m << " to " << m << std::endl;
-      delete state_copy;
-      return true;
     } else {
       delete state_copy;
       return false;
@@ -2076,7 +2084,8 @@ void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool co
     const auto &misplaced_object = objects_.at(object_names_.at(misplaced_object_index));
 
     if (!goal_region_ && state->GetAttatchedObject() == misplaced_object.name_) {
-      std::cout<<"Checking blocking objects of attached object. Min block obj is: "<<min_num_blocking_objects<<std::endl;
+      std::cout << "Checking blocking objects of attached object. Min block obj is: " << min_num_blocking_objects
+                << std::endl;
       auto target_pose =
           goal_positions_.find("target" + misplaced_object.name_.substr(misplaced_object.name_.find("_")));
       if (target_pose == goal_positions_.end())
@@ -2112,9 +2121,12 @@ void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool co
 
           if (min_num_object_blocking_objects == 0)
             break;
-
+          auto gripper_pose = object_pose * grasp;
+          if (!IsGripperInValidRegion(gripper_pose.translation())) {
+            continue;
+          }
           std::size_t num_blocking_objects = BlockingObjectsPick(
-              state, object_pose, object_pose * grasp, misplaced_object.name_, min_num_object_blocking_objects);
+              state, object_pose, gripper_pose, misplaced_object.name_, min_num_object_blocking_objects);
 
           std::cout << "In grasp " << g_i << " ,num blocking objects pick are: " << num_blocking_objects << std::endl;
 
@@ -2149,9 +2161,12 @@ void MoveitTampProblem::SetBlockingObjects(MoveitTampState *const state, bool co
         for (const auto &grasp : misplaced_object.grasps_) {
           if (min_num_object_blocking_objects == 0)
             break;
-
+          auto gripper_pose = object_pose * grasp;
+          if (!IsGripperInValidRegion(gripper_pose.translation())) {
+            continue;
+          }
           std::size_t num_blocking_objects = BlockingObjectsPick(
-              state, object_pose, object_pose * grasp, misplaced_object.name_, min_num_object_blocking_objects);
+              state, object_pose, gripper_pose, misplaced_object.name_, min_num_object_blocking_objects);
 
           if (num_blocking_objects < min_num_object_blocking_objects) {
             min_num_object_blocking_objects = num_blocking_objects;
@@ -2217,9 +2232,12 @@ std::size_t MoveitTampProblem::BlockingObjectsPlace(MoveitTampState const *const
         break;
       }
       std::vector<std::string> blocking_objects_names;
-
+      auto gripper_pose = placement_pose * sop * grasp;
+      if (!IsGripperInValidRegion(gripper_pose.translation())) {
+        continue;
+      }
       std::size_t num_blocking_objects =
-          BlockingObjects(state, placement_pose * sop, robot_pose, placement_pose * sop * grasp, misplaced_object_name,
+          BlockingObjects(state, placement_pose * sop, robot_pose, gripper_pose, misplaced_object_name,
                           min_num_blocking_objects, blocking_objects_names, extra_dummy_poses);
 
       // auto pos = misplaced_object_name.find("red");
@@ -2452,6 +2470,10 @@ std::size_t MoveitTampProblem::NumMisplacedsBlockedByGoal(const Eigen::Affine3d 
     std::cout << "Checking if object " << object_name << " blocks misplaced: " << misplaced_object.name_ << std::endl;
     for (const auto &grasp : misplaced_object.grasps_) {
       const auto gripper_pose = object_pose * grasp;
+      if (!IsGripperInValidRegion(gripper_pose.translation())) {
+        continue;
+      }
+
       // if (min_num_object_blocking_objects == 0)
       if (min_num_blocking_objects == 0)
         break;
@@ -2484,18 +2506,21 @@ std::size_t MoveitTampProblem::NumMisplacedsBlockedByGoal(const Eigen::Affine3d 
 
             for (const auto &sop : misplaced_object.stable_object_poses_) {
               const auto &placement_pose = Eigen::Affine3d(Eigen::Translation3d(target_pose->second));
+              const auto gripper_pose_place = placement_pose * sop * grasp;
+              if (!IsGripperInValidRegion(gripper_pose_place.translation())) {
+                continue;
+              }
               num_blocking_objects +=
-                  BlockingObjects(state, placement_pose * sop, robot_pose, placement_pose * sop * grasp,
-                                  misplaced_object.name_, min_num_blocking_objects, blocking_objects_names, goal_poses);
+                  BlockingObjects(state, placement_pose * sop, robot_pose, gripper_pose_place, misplaced_object.name_,
+                                  min_num_blocking_objects, blocking_objects_names, goal_poses);
               if (num_blocking_objects < min_num_blocking_objects) {
                 min_num_blocking_objects = num_blocking_objects;
                 goal_is_blocking = (std::find(blocking_objects_names.begin(), blocking_objects_names.end(), "goal") !=
                                     blocking_objects_names.end());
                 // if (goal_is_blocking) {
-                //   blocked_pose = placement_pose;          
+                //   blocked_pose = placement_pose;
                 // }
-                std::cout << "With sop " << sop.rotation()                        
-                          << "\n min num: " << min_num_blocking_objects
+                std::cout << "With sop " << sop.rotation() << "\n min num: " << min_num_blocking_objects
                           << " \n the number of blocking in PLACE is: " << num_blocking_objects
                           << "\n and blocking goal is: "
                           << (std::find(blocking_objects_names.begin(), blocking_objects_names.end(), "goal") !=
@@ -2529,9 +2554,13 @@ std::size_t MoveitTampProblem::NumMisplacedsBlockedByGoal(const Eigen::Affine3d 
 
             for (const auto &sop : misplaced_object.stable_object_poses_) {
               const auto &placement_pose = Eigen::Affine3d(Eigen::Translation3d(target_pose->second));
+              const auto gripper_pose_place = placement_pose * sop * grasp;
+              if (!IsGripperInValidRegion(gripper_pose_place.translation())) {
+                continue;
+              }
               num_blocking_objects +=
-                  BlockingObjects(state, placement_pose * sop, robot_pose, placement_pose * sop * grasp,
-                                  misplaced_object.name_, min_num_blocking_objects, blocking_objects_names, goal_poses);
+                  BlockingObjects(state, placement_pose * sop, robot_pose, gripper_pose_place, misplaced_object.name_,
+                                  min_num_blocking_objects, blocking_objects_names, goal_poses);
               if (num_blocking_objects < min_num_blocking_objects) {
                 min_num_blocking_objects = num_blocking_objects;
                 goal_is_blocking = (std::find(blocking_objects_names.begin(), blocking_objects_names.end(), "goal") !=
@@ -2563,10 +2592,10 @@ std::size_t MoveitTampProblem::NumMisplacedsBlockedByGoal(const Eigen::Affine3d 
 
                 << " and placement pose: "
                 << Eigen::Affine3d(Eigen::Translation3d(target_pose->second)).translation().transpose() << std::endl;
-      std::string x;
 
-      std::cout << "type any key to continue" << std::endl;
-      std::cin >> x;
+      // std::string x;
+      // std::cout << "type any key to continue" << std::endl;
+      // std::cin >> x;
 
       if (only_check_at_least_one_is_blocked) {
         std::cout << "Number of misplaced blocked by goal is: " << num_misplaced_blocked_by_goal << std::endl;
@@ -2618,6 +2647,19 @@ void MoveitTampProblem::AddTestCollision() {
   collision_object.primitive_poses.push_back(primitive_pose);
 
   planning_scene_interface_.applyCollisionObject(collision_object);
+}
+bool MoveitTampProblem::IsGripperInValidRegion(const Eigen::Vector3d &gripper_position) const {
+  if (!check_gripper_region_) {
+    return true;
+  } else {
+    if (gripper_position.x() >= (2.2-0.1)) {
+      return false;
+    } else if (gripper_position.y() <= -(2.1-0.1)) {
+      return false;
+    } else {
+      return true;
+    }
+  }
 }
 
 // FRIEND CLASSES
