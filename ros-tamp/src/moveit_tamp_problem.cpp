@@ -1344,13 +1344,15 @@ void MoveitTampProblem::SetMisplacedObjects(MoveitTampState *const state) const 
   state->SetMisplacedObjects(state_misplaced_objects);
 }
 
-bool MoveitTampProblem::IsGoal(State const *const state) const {
+bool MoveitTampProblem::IsGoal(State const *const state)  {
 
   if (active_sketch_rule_ == MoveitTampProblem::END) {
     std::cout << "FINAL GOAL FOUND" << std::endl;
     return true; // State is a final goal
   }
+  
   auto state_copy = state->Clone(); // TODO: Alguna manera més elegant?
+  UpdateGoalPositions(state_copy);
   auto casted_state = dynamic_cast<MoveitTampState *>(state_copy);
   bool H = casted_state->HasObjectAttached();
   std::size_t m, n, s;
@@ -1991,6 +1993,7 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
   // TODO optimize computing s or not
   // std::cout<<"selecting sketch"<<std::endl;
   auto cloned_state = state->Clone();
+  UpdateGoalPositions(cloned_state);
   ComputeStateSketchFeatures(cloned_state);
   auto casted_state = dynamic_cast<const MoveitTampState *>(cloned_state);
   start_state_sketch_features_.H = casted_state->HasObjectAttached();

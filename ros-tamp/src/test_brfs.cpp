@@ -70,7 +70,7 @@ public:
   }
   virtual State *const Start() const { return new MyState(start_coords_.first, start_coords_.second); };
 
-  virtual bool IsGoal(State const *const state) const {
+  virtual bool IsGoal(State const *const state)  {
     const MyState *my_state = dynamic_cast<const MyState *>(state);
     if (!my_state) {
       std::cout << __FILE__ << ":" << __LINE__ << std::endl;

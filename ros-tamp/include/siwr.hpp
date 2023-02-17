@@ -22,9 +22,13 @@ public:
     while (!failed && !succeeded) {
       Plan sub_plan;
       printStatisticsSIWR();
+      std::cout << "pre adaptative sampling" << std::endl;
       problem_->AdaptativeSampling(start_state);
+      std::cout << "pre active sketch rule" << std::endl;
       problem_->SetActiveSketchRule(start_state);
+      std::cout << "pre solve" << std::endl;
       failed = !(IWk::Solve(sub_plan, lazy, start_state));
+      std::cout << "post solve" << std::endl;
       UpdateSIWRStatistics();
       if (!failed) {
         num_subproblems_solved_++;

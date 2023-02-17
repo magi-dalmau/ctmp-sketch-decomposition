@@ -11,7 +11,7 @@ public:
       delete action;
   }
   virtual State *const Start() const = 0;
-  virtual bool IsGoal(State const *const state) const = 0;
+  virtual bool IsGoal(State const *const state) = 0;
   virtual std::vector<Action *> GetValidActions(State const *const state, bool lazy = false) {
     std::vector<Action *> valid_actions;
     for (const auto action : actions_) {
@@ -35,6 +35,7 @@ public:
   }
   virtual void PrintStatistics() const = 0;
   virtual bool ExecutePlan(const Plan &plan) { return false; }
+  virtual void UpdateGoalPositions(State *const state) {}
 
 protected:
   std::vector<Action *> actions_;

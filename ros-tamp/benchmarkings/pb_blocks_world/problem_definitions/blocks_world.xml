@@ -1,7 +1,7 @@
 <problem>
    <objects>
       <obj>
-         <name>cube_C</name>
+         <name>cube_C_1</name>
          <geom>cube_C.stl</geom>
          <pose>1.000 0.000 0.000 0.760925 0.000 1.000 0.000 0.233887 0.000 0.000 1.000 0.767</pose>
         
@@ -20,7 +20,7 @@
       </obj>
 
       <obj>
-         <name>cube_T</name>
+         <name>cube_T_1</name>
          <geom>cube_T.stl</geom>
          <pose>1.000 0.000 0.000 0.77 0.000 1.000 0.000 -0.15 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
@@ -37,7 +37,7 @@
          </sop>
       </obj>
       <obj>
-         <name>cube_M</name>
+         <name>cube_M_1</name>
          <geom>cube_M.stl</geom>
          <pose>1.000 0.000 0.000 0.905831 0.000 1.000 0.000 -0.395055 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
@@ -55,7 +55,7 @@
       </obj>
 
       <obj>
-         <name>cube_P</name>
+         <name>cube_P_1</name>
          <geom>cube_P.stl</geom>
          <pose>1.000 0.000 0.000 0.980004 0.000 1.000 0.000 0.000 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
@@ -73,7 +73,7 @@
       </obj>
 
       <obj>
-         <name>cube_R</name>
+         <name>cube_R_1</name>
          <geom>cube_R.stl</geom>
          <pose>1.000 0.000 0.000 0.905814 0.000 1.000 0.000 0.195063 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
@@ -91,7 +91,7 @@
       </obj>
 
       <obj>
-         <name>cube_L</name>
+         <name>cube_L_1</name>
          <geom>cube_L.stl</geom>
          <pose>1.000 0.000 0.000 1.04507 0.000 1.000 0.000 -0.255809 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
@@ -109,7 +109,7 @@
       </obj>
 
       <obj>
-         <name>cube_Z</name>
+         <name>cube_Z_1</name>
          <geom>cube_Z.stl</geom>
          <pose>1.000 0.000 0.000 0.79975 0.000 1.000 0.000 0.378776 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
@@ -127,7 +127,7 @@
       </obj>
 
       <obj>
-         <name>cube_F</name>
+         <name>cube_F_1</name>
          <geom>cube_F.stl</geom>
          <pose>1.000 0.000 0.000 1.03624 0.000 1.000 0.000 -0.400697 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
@@ -155,14 +155,14 @@
             <zmin>0.767</zmin><zmax>0.767</zmax>
          </sssp>
          <attachments>
-            <name>cube_C</name>          
-            <name>cube_T</name>
-            <name>cube_M</name>
-            <name>cube_P</name>
-            <name>cube_R</name>
-            <name>cube_L</name>
-            <name>cube_Z</name>
-            <name>cube_F</name>            
+            <name>cube_C_1</name>          
+            <name>cube_T_1</name>
+            <name>cube_M_1</name>
+            <name>cube_P_1</name>
+            <name>cube_R_1</name>
+            <name>cube_L_1</name>
+            <name>cube_Z_1</name>
+            <name>cube_F_1</name>            
          </attachments>
      </obj>
 

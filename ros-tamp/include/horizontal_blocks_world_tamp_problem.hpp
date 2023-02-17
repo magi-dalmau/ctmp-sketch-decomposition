@@ -29,12 +29,17 @@ protected:
   std::string GetObjectId(const std::size_t &object_index) const;
   std::string GetObjectClass(const std::string &object_name) const;
   std::string GetObjectClass(const std::size_t &object_index) const;
+  void UpdateGoalPositions(State *const state) override;
+  void UpdateLongestValidSequence(MoveitTampState *const state);
 
   // Objects
   double goal_tolerance_radius_;
   bool only_green_goals_;
   std::string goal_sequence_;
-  std::map<std::size_t, std::pair<std::size_t, std::size_t>> object_neighbours_template_;
   std::vector<std::size_t> longest_valid_seq_;
+  std::map<std::string,Eigen::Vector3d> class_goal_template_;
+  std::map<std::size_t, std::pair<std::size_t, std::size_t>> object_neighbours_template_;
+
   Eigen::Affine3d left2right_pose_;
+
 };

@@ -35,7 +35,7 @@ public:
   virtual State *const Start() const override;
   void AdaptativeSampling(const State *const state);
 
-  virtual bool IsGoal(State const *const state) const override;
+  virtual bool IsGoal(State const *const state)  override;
   virtual ~MoveitTampProblem() override;
 
   // overriding GetValidActions voluntarily
