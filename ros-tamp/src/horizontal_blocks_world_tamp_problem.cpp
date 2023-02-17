@@ -35,7 +35,7 @@ BlocksWorldTampProblem::BlocksWorldTampProblem(const std::string &filename, cons
 
   // TODO define neighbourh translation
   left2right_pose_ = Eigen::Affine3d().fromPositionOrientationScale(
-      Eigen::Vector3d(0.05, 0, 0), Eigen::Quaterniond(1., 0., 0., 0.), Eigen::Vector3d(1., 1., 1.));
+      Eigen::Vector3d(0.085, 0, 0), Eigen::Quaterniond(1., 0., 0., 0.), Eigen::Vector3d(1., 1., 1.));
   std::cout << "problem loaded" << std::endl;
 
   ROS_DEBUG("PROBLEM INITIALIZED");
@@ -250,31 +250,33 @@ bool BlocksWorldTampProblem::IsValidSequence(const std::vector<std::size_t> &seq
   std::cout << std::endl;
   */
   if (seq.size() > goal_sequence_.size()) {
-    //std::cout << "Invalid seq: seq size > goal seq" << std::endl;
+    // std::cout << "Invalid seq: seq size > goal seq" << std::endl;
     return false;
   }
 
   std::string block_class = GetObjectClass(seq.at(0));
   auto pos_seq = goal_sequence_.find(block_class);
   if (pos_seq == std::string::npos) {
-    //std::cout << "Invalid seq: head of seq is not in goal seq" << std::endl;
+    // std::cout << "Invalid seq: head of seq is not in goal seq" << std::endl;
     return false; // Object id is not in the goal seq
   }
   std::size_t i = 1; // TODO: put it more elegant
   while (pos_seq != std::string::npos && i < seq.size()) {
     for (i = 1; (i < seq.size() && (i + pos_seq) < goal_sequence_.size()); i++) {
       if (GetObjectClass(seq.at(i)) != std::to_string(goal_sequence_.at(pos_seq + i))) {
-        //std::cout << "Invalid SUB seq: the sub seq is not in the expected part of the goal seq" << std::endl;
+        // std::cout << "Invalid SUB seq: the sub seq is not in the expected part of the goal seq" << std::endl;
 
         break;
       }
     }
     if (i < seq.size()) {
       pos_seq = (goal_sequence_.substr(pos_seq)).find(block_class);
-      //std::cout << "Retrying in a new part of the goal seq, starting in: " << pos_seq << " which is letter "<< goal_sequence_.at(pos_seq) << std::endl;
+      // std::cout << "Retrying in a new part of the goal seq, starting in: " << pos_seq << " which is letter "<<
+      // goal_sequence_.at(pos_seq) << std::endl;
     }
   }
-  //std::cout << "Seq is " << (pos_seq != std::string::npos && i == seq.size()) << "with "<< (pos_seq != std::string::npos) << " pos_seq and " << (i == seq.size()) << " i comparison" << std::endl;
+  // std::cout << "Seq is " << (pos_seq != std::string::npos && i == seq.size()) << "with "<< (pos_seq !=
+  // std::string::npos) << " pos_seq and " << (i == seq.size()) << " i comparison" << std::endl;
 
   return (pos_seq != std::string::npos &&
           i == seq.size()); // Si ha arribat al final vol dir que ha comprovat tota la sequencia
@@ -299,23 +301,31 @@ std::string BlocksWorldTampProblem::GetObjectClass(const std::size_t &object_ind
   return GetObjectClass(object_names_.at(object_index));
 }
 void BlocksWorldTampProblem::UpdateGoalPositions(State *const state) {
-  //std::cout << "Init update goal positions" << std::endl;
-  // Given the longest valid sequence, compute the goals of each block. For duplicated compute only the first?
+  for (const auto id : longest_valid_seq_) {
+    objects_.at(object_names_.at(id)).moveable_ = true;
+  }
+  // std::cout << "Init update goal positions" << std::endl;
+  //  Given the longest valid sequence, compute the goals of each block. For duplicated compute only the first?
   auto casted_state = dynamic_cast<MoveitTampState *>(state);
   UpdateLongestValidSequence(casted_state);
-  //std::cout << "longest valid sequence updated" << std::endl;
-  // goal_positions_.insert(std::make_pair(object.name_, object.pose_ * Eigen::Vector3d(0, 0, 0.001)));
+  // std::cout << "longest valid sequence updated" << std::endl;
+  //  goal_positions_.insert(std::make_pair(object.name_, object.pose_ * Eigen::Vector3d(0, 0, 0.001)));
   if (longest_valid_seq_.size() < goal_sequence_.size()) {
-    //std::cout << "longest valid size: " << longest_valid_seq_.size() << " goal seq size: " << goal_sequence_.size()<< std::endl;
+    // std::cout << "longest valid size: " << longest_valid_seq_.size() << " goal seq size: " << goal_sequence_.size()<<
+    // std::endl;
     std::map<std::string, Eigen::Vector3d> class_goals = class_goal_template_;
     std::string longest_valid_seq_classes = "";
     for (const auto obj_index : longest_valid_seq_) {
-      //std::cout << "Object index is: " << obj_index << std::endl;
+      // std::cout << "Object index is: " << obj_index << std::endl;
       longest_valid_seq_classes += GetObjectClass(obj_index);
     }
     std::size_t init = goal_sequence_.find(longest_valid_seq_classes);
     std::size_t end = init + longest_valid_seq_.size() - 1;
-    //std::cout << "init is " << init << " end is " << end << std::endl;
+    // std::cout << "init is " << init << " end is " << end << std::endl;
+    // TODO: UNDO this
+    for (const auto id : longest_valid_seq_) {
+      objects_.at(object_names_.at(id)).moveable_ = false;
+    }
     if (init > 0) {
 
       class_goals.insert(
@@ -324,8 +334,8 @@ void BlocksWorldTampProblem::UpdateGoalPositions(State *const state) {
                          (casted_state->GetObjectPoses().at(init) * left2right_pose_.inverse()).translation()));
     }
     if ((end + 1) < goal_sequence_.size()) {
-      std::cout << "inserting letter: " << goal_sequence_.at(end + 1)
-                << " and converted is: " << std::string(1, goal_sequence_.at(end + 1)) << std::endl;
+      // std::cout << "inserting letter: " << goal_sequence_.at(end + 1) << " and converted is: " << std::string(1,
+      // goal_sequence_.at(end + 1)) << std::endl;
       class_goals.insert(std::make_pair(std::string(1, goal_sequence_.at(end + 1)),
                                         (casted_state->GetObjectPoses().at(end) * left2right_pose_).translation()));
     }
@@ -341,52 +351,56 @@ void BlocksWorldTampProblem::UpdateGoalPositions(State *const state) {
       if (!objects_.at(object_names_.at(i)).moveable_)
         continue;
       auto class_goal = class_goals.find(GetObjectClass(i));
-      //std::cout << "For object " << object_names_.at(i) << " with class " << GetObjectClass(i) << std::endl;
+      // std::cout << "For object " << object_names_.at(i) << " with class " << GetObjectClass(i) << std::endl;
       if (class_goal != class_goals.end()) {
-        //std::cout << " class goal is: " << class_goal->first << " postion " << class_goal->second.transpose()<< std::endl;
+        // std::cout << " class goal is: " << class_goal->first << " postion " << class_goal->second.transpose()<<
+        // std::endl;
         goal_positions_.insert(std::make_pair("target_" + GetObjectId(object_names_.at(i)), class_goal->second));
       }
     }
   }
-  //std::cout << "End update goal positions" << std::endl;
-  /*std::cout << "Goal positions are: ";
+  // std::cout << "End update goal positions" << std::endl;
+  std::cout << "Goal positions are: ";
   for (const auto &goal : goal_positions_) {
     std::cout << "\n " << goal.first << " position: " << goal.second.transpose();
   }
-  std::cout << std::endl;*/
+  std::cout << std::endl;
 }
 void BlocksWorldTampProblem::UpdateLongestValidSequence(MoveitTampState *const state) {
-  //std::cout << "Init update longest seq" << std::endl;
+  // std::cout << "Init update longest seq" << std::endl;
 
   const auto object_poses = state->GetObjectPoses();
   std::size_t num_objects = objects_.size();
   // Search and set object neighbours (left and right)
   auto object_neighbours = object_neighbours_template_;
   for (std::size_t id_obj_left = 0; id_obj_left < num_objects; ++id_obj_left) {
-    //std::cout << "id left is: " << id_obj_left << std::endl;
-    //std::cout << "Object left is: " << object_names_.at(id_obj_left) << std::endl;
+    // std::cout << "id left is: " << id_obj_left << std::endl;
+    // std::cout << "Object left is: " << object_names_.at(id_obj_left) << std::endl;
     if (!objects_.at(object_names_.at(id_obj_left)).moveable_)
       continue;
     for (std::size_t id_obj_right = 0; id_obj_right < num_objects; ++id_obj_right) {
-      //std::cout << "Object right is: " << object_names_.at(id_obj_right) << std::endl;
+      // std::cout << "Object right is: " << object_names_.at(id_obj_right) << std::endl;
       if (!objects_.at(object_names_.at(id_obj_right)).moveable_ ||
           object_names_.at(id_obj_left) == object_names_.at(id_obj_right))
         continue;
-      //std::cout << "Checking is neighbourg" << std::endl;
+      std::cout << "Checking is neighbourg left: " << object_names_.at(id_obj_left) << " with position "
+                << object_poses.at(id_obj_left).translation().transpose()
+                << " right: " << object_names_.at(id_obj_right) << " with position "
+                << object_poses.at(id_obj_right).translation().transpose() << std::endl;
       if (IsNeighbour(object_poses.at(id_obj_left), object_poses.at(id_obj_right))) {
-        //std::cout << "updating neighbours" << std::endl;
+        // std::cout << "updating neighbours" << std::endl;
         object_neighbours.at(id_obj_left).second = id_obj_right;
         object_neighbours.at(id_obj_right).first = id_obj_left;
-        //std::cout << "neighbours updated" << std::endl;
+        // std::cout << "neighbours updated" << std::endl;
       }
     }
-    //std::cout << "End update longest seq" << std::endl;
+    // std::cout << "End update longest seq" << std::endl;
   }
   std::priority_queue<std::vector<std::size_t>, std::vector<std::vector<std::size_t>>, CompareSequences> sequences;
 
   // std::vector<std::vector<std::size_t>> sequences;
   for (std::size_t id_obj = 0; id_obj < num_objects; ++id_obj) {
-    //std::cout << "trying object neighbour with id: " << id_obj << std::endl;
+    // std::cout << "trying object neighbour with id: " << id_obj << std::endl;
     if (!objects_.at(object_names_.at(id_obj)).moveable_)
       continue;
     if (object_neighbours.at(id_obj).first >=
@@ -394,7 +408,7 @@ void BlocksWorldTampProblem::UpdateLongestValidSequence(MoveitTampState *const s
                      // id has not been changed, this object does not have left (in this case) neighbour. If the
                      // object does not have left neighbour is "head of sequence"
     {
-      //std::cout << "object : " << id_obj << " is head of seq" << std::endl;
+      // std::cout << "object : " << id_obj << " is head of seq" << std::endl;
       std::vector<std::size_t> seq;
       seq.push_back(id_obj);
       std::size_t next = object_neighbours.at(id_obj).second;
@@ -402,12 +416,12 @@ void BlocksWorldTampProblem::UpdateLongestValidSequence(MoveitTampState *const s
         seq.push_back(next);
         next = object_neighbours.at(next).second;
       }
-      //std::cout << "seq size is: " << seq.size() << std::endl;
+      // std::cout << "seq size is: " << seq.size() << std::endl;
       sequences.push(seq);
     }
   }
-  //std::cout << "sequences writed" << std::endl;
-  // Find the longest valid sequences
+  // std::cout << "sequences writed" << std::endl;
+  //  Find the longest valid sequences
   bool valid = false;
   while (!valid && !sequences.empty()) {
     if (IsValidSequence(sequences.top())) {
@@ -417,16 +431,21 @@ void BlocksWorldTampProblem::UpdateLongestValidSequence(MoveitTampState *const s
       sequences.pop();
     }
   }
+  std::cout << "New longest valid seq is: ";
+  for (const auto &obj_id : longest_valid_seq_) {
+    std::cout << object_names_.at(obj_id) << " ";
+  }
+  std::cout << std::endl;
 }
 std::string BlocksWorldTampProblem::GetObjectClass(const std::string &object_name) const {
   // Example from: cube_T_2 -> return: T
   auto obj_id = GetObjectId(object_name); // e.g. This goes from cube_T_2 to T_2
-  //std::cout << " processing obj id: " << obj_id << std::endl;
+  // std::cout << " processing obj id: " << obj_id << std::endl;
   auto pos = obj_id.find("_");
   if (pos == std::string::npos) {
     throw std::runtime_error("Cannot extract the object id from: " + object_name);
   }
-  //std::cout << " object class is: " << obj_id.substr(0, pos) << std::endl;
+  // std::cout << " object class is: " << obj_id.substr(0, pos) << std::endl;
   return obj_id.substr(0, pos); // E.g. this goes from T_2 to T
 }
 
@@ -455,10 +474,10 @@ bool BlocksWorldTampProblem::AllGoalRegionBlockMisplaced(const std::string &obje
   // Check if at least one goal poses does not block any misplaced object
   // const auto grasped_object = state->GetAttatchedObject();
   // for (const auto goal_pose : sampled_goal_poses) {
-  auto goal = goal_positions_.find(object_name);
+  auto goal = goal_positions_.find("target_" + GetObjectId(object_name));
   if (goal == goal_positions_.end()) {
-    //std::cout << "This object doesnt have goal targets" << std::endl;
-    return true; // TODO verify behavior
+    std::cout << "object " << object_name << " doesnt have goal targets" << std::endl;
+    return false; // TODO verify behavior
   }
   if (NumMisplacedsBlockedByGoal(Eigen::Affine3d().fromPositionOrientationScale(
                                      goal->second, Eigen::Quaterniond(1, 0, 0, 0), Eigen::Vector3d(1, 1, 1)),

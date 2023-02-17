@@ -393,7 +393,7 @@ void MoveitTampProblem::LoadWorld(const std::string &filename) {
     std::string mesh_name = object.mesh_.substr(0, object.mesh_.find_last_of('.'));
     display_object.mesh_resource =
         "file://" + filename.substr(0, filename.substr(0, filename.find_last_of('/')).find_last_of('/')) + "/meshes/" +
-    mesh_name + ".dae";
+        mesh_name + ".dae";
     // display_object.mesh_use_embedded_materials = true;
     // TODO #FUTURE MINOR:(magi.dalmau) solve color problem definition in files
     display_object.action = visualization_msgs::Marker::ADD;
@@ -828,7 +828,8 @@ void MoveitTampProblem::AdaptativeSampling(const State *const state) {
       }
     }
   }
-
+  auto cloned_state = state->Clone();
+  UpdateGoalPositions(cloned_state);
   auto casted_state = dynamic_cast<const MoveitTampState *>(state);
   AddCurrentObjectsToPlacements(casted_state->GetObjectPoses());
   // std::cout<< "There are "<<goal_positions_.size()<<" goal positions"<<std::endl;
@@ -1344,13 +1345,13 @@ void MoveitTampProblem::SetMisplacedObjects(MoveitTampState *const state) const 
   state->SetMisplacedObjects(state_misplaced_objects);
 }
 
-bool MoveitTampProblem::IsGoal(State const *const state)  {
+bool MoveitTampProblem::IsGoal(State const *const state) {
 
   if (active_sketch_rule_ == MoveitTampProblem::END) {
     std::cout << "FINAL GOAL FOUND" << std::endl;
     return true; // State is a final goal
   }
-  
+
   auto state_copy = state->Clone(); // TODO: Alguna manera més elegant?
   UpdateGoalPositions(state_copy);
   auto casted_state = dynamic_cast<MoveitTampState *>(state_copy);
@@ -1366,14 +1367,13 @@ bool MoveitTampProblem::IsGoal(State const *const state)  {
     }
     SetMisplacedObjects(casted_state);
     m = casted_state->GetNumOfMisplacedObjects();
-    // F = !AllGoalRegionBlockMisplaced(casted_state->GetAttatchedObject(), casted_state);
-    // if (m < start_state_sketch_features_.m) {
-    //   std::cout << "Stopped in br: Grasped object is: " << casted_state->GetAttatchedObject()
-    //   << " F: " << F
-    //             << " m_init, m_current: " << start_state_sketch_features_.m << "," << m << std::endl;
-    //   char c;
-    //   std::cin >> c;
-    // }
+    F = !AllGoalRegionBlockMisplaced(casted_state->GetAttatchedObject(), casted_state);
+    if (m < start_state_sketch_features_.m) {
+      std::cout << "Stopped in br: Grasped object is: " << casted_state->GetAttatchedObject() << " F: " << F
+                << " m_init, m_current: " << start_state_sketch_features_.m << "," << m << std::endl;
+      char c;
+      std::cin >> c;
+    }
     if (m < start_state_sketch_features_.m) {
       F = !AllGoalRegionBlockMisplaced(casted_state->GetAttatchedObject(), casted_state);
       if (F) {
@@ -1425,8 +1425,9 @@ bool MoveitTampProblem::IsGoal(State const *const state)  {
     m = casted_state->GetNumOfMisplacedObjects();
     if (m != start_state_sketch_features_.m) {
       delete state_copy;
-      // std::cout << "Discarted place free object because m changes from " << start_state_sketch_features_.m << " to "
-      //           << m << std::endl;
+      std::cout << "Discarted place free object " << casted_state->GetAttatchedObject() << " because m changes from "
+                << start_state_sketch_features_.m << " to " << m << std::endl;
+
       return false;
     }
     SetBlockingObjects(casted_state, true);
@@ -1441,15 +1442,13 @@ bool MoveitTampProblem::IsGoal(State const *const state)  {
       delete state_copy;
       return true;
     } else {
-      // if (n != start_state_sketch_features_.n)
-      //   std::cout << "Discarted place free object because n changes from " << start_state_sketch_features_.n << " to
-      //   "
-      //             << n << std::endl;
+      if (n != start_state_sketch_features_.n)
+        std::cout << "Discarted place free object " << casted_state->GetAttatchedObject() << " because n changes from "
+                  << start_state_sketch_features_.n << " to   " << n << std::endl;
 
-      // if (s != start_state_sketch_features_.s)
-      //   std::cout << "Discarted place free object because s changes from " << start_state_sketch_features_.s << " to
-      //   "
-      //             << s << std::endl;
+      if (s != start_state_sketch_features_.s)
+        std::cout << "Discarted place free object " << casted_state->GetAttatchedObject() << " because s changes from "
+                  << start_state_sketch_features_.s << " to" << s << std::endl;
       delete state_copy;
       return false;
     }
@@ -1693,6 +1692,12 @@ Cases:
             if (!found)
               ++it;
           }
+          if (casted_state->GetAttatchedObject() == "cube_T_1" && fabs(placement_pos.x()- 0.785) < 1e-3 &&
+              fabs(placement_pos.y() - 0.233887) < 1e-3) {
+            std::cout << "Stoped in a BR, trying T goal placement oncircle is: " << found << std::endl;
+            char c;
+            std::cin >> c;
+          }
           if (found)
             continue;
 
@@ -1700,9 +1705,22 @@ Cases:
             static moveit_msgs::RobotState::_joint_state_type joint_goal;
             if (!ComputeIK(robot_base_tf_inverse * object.second.pose_ * placement * stable_object_pose *
                                (*casted_state->GetGrasp()),
-                           joint_goal))
+                           joint_goal)) {
+              if (casted_state->GetAttatchedObject() == "cube_T_1" && fabs(placement_pos.x() - 0.785) < 1e-3 &&
+                  fabs(placement_pos.y() - 0.233887) < 1e-3) {
+                std::cout << "Stoped in a BR, trying T goal placement compute ik is: false" << std::endl;
+                char c;
+                std::cin >> c;
+              }
               continue;
+            }
             // std::cout << "creating PlaceAction" << std::endl;
+            if (casted_state->GetAttatchedObject() == "cube_T_1" && fabs(placement_pos.x() - 0.785) < 1e-3 &&
+                fabs(placement_pos.y() - 0.233887) < 1e-3) {
+              std::cout << "Stoped in a BR, trying T goal placement compute ik is: true" << std::endl;
+              char c;
+              std::cin >> c;
+            }
             auto action = new PlaceAction(attached_object->first, joint_goal,
                                           object.second.pose_ * placement * stable_object_pose);
             if (!lazy && !IsActionValid(state, action)) {
@@ -1993,7 +2011,7 @@ bool MoveitTampProblem::SetActiveSketchRule(const State *const state) {
   // TODO optimize computing s or not
   // std::cout<<"selecting sketch"<<std::endl;
   auto cloned_state = state->Clone();
-  UpdateGoalPositions(cloned_state);
+  // UpdateGoalPositions(cloned_state);
   ComputeStateSketchFeatures(cloned_state);
   auto casted_state = dynamic_cast<const MoveitTampState *>(cloned_state);
   start_state_sketch_features_.H = casted_state->HasObjectAttached();
@@ -2395,7 +2413,8 @@ std::size_t MoveitTampProblem::BlockingObjects(MoveitTampState const *const stat
         if (dist < blocking_object_distance_threshold_) {
           num_blocking_objects++;
           blocking_objects_names.push_back("goal");
-          // std::cout << "Inserting blocking goal pose " << pose.translation().transpose() << " distance is: " << dist
+          // std::cout << "Inserting blocking goal pose " << pose.translation().transpose() << " distance is: " <<
+          // dist
           //           << std::endl;
         }
       }
@@ -2465,7 +2484,8 @@ std::size_t MoveitTampProblem::NumMisplacedsBlockedByGoal(const Eigen::Affine3d 
     const auto object_pose = state->GetObjectPoses().at(misplaced_object_index);
     // if (!OnWorkspace(
     //         goal_pose,
-    //         object_pose)) // TODO: Pendent de fer mes elegant. Comprovar que els dos objectes estan minimament aprop
+    //         object_pose)) // TODO: Pendent de fer mes elegant. Comprovar que els dos objectes estan minimament
+    //         aprop
     //   continue;
     // Iterate misplaced grasps
     Eigen::Affine3d blocked_pose;
@@ -2655,9 +2675,9 @@ bool MoveitTampProblem::IsGripperInValidRegion(const Eigen::Vector3d &gripper_po
   if (!check_gripper_region_) {
     return true;
   } else {
-    if (gripper_position.x() >= (2.2-0.1)) {
+    if (gripper_position.x() >= (2.2 - 0.1)) {
       return false;
-    } else if (gripper_position.y() <= -(2.1-0.1)) {
+    } else if (gripper_position.y() <= -(2.1 - 0.1)) {
       return false;
     } else {
       return true;

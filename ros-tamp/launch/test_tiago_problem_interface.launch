@@ -33,7 +33,7 @@
         <param name="locations_amount" type="int" value="18" />
         <param name="min_base_allowed_distance" type="double" value="1.6" />
         <!-- <param name="min_base_allowed_distance" type="double" value="1.5" /> -->
-        <param name="exclude_fronted_locations" type="bool" value="false" />
+        <param name="exclude_fronted_locations" type="bool" value="true" />
         <param name="central_bases" type="bool" value="false" />
 
         <param name="robot_workspace_min_radius" type="double" value="0.395" />
@@ -58,8 +58,8 @@
 
 
         <param name="reuse_expansions" type="bool" value="true" />
-        <param name="gripper_semiamplitude" type="double" value="0.12" />
-        <!-- <param name="gripper_semiamplitude" type="double" value="0.045" />  -->
+        <!-- <param name="gripper_semiamplitude" type="double" value="0.12" /> -->
+        <param name="gripper_semiamplitude" type="double" value="0.045" /> 
         <!-- gripper semiamplitude 0.12 instead 0.045 needed for non-monotonic probl -->
         <!-- region goals; //TODO use yaml file-->
         <!-- <param name="region_1" type="string" value="table3" />
