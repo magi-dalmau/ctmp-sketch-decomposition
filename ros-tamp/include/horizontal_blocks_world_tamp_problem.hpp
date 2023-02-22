@@ -12,7 +12,7 @@ public:
 
 protected:
   struct CompareSequences {
-    bool operator()(std::vector<std::size_t> a, std::vector<std::size_t> b) { return (a.size() > b.size()); }
+    bool operator()(std::vector<std::size_t> a, std::vector<std::size_t> b) { return (a.size() < b.size()); }
   };
 
   virtual void ComputeStateSketchFeatures(State *const state) override;

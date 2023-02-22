@@ -1692,7 +1692,7 @@ Cases:
             if (!found)
               ++it;
           }
-          if (casted_state->GetAttatchedObject() == "cube_T_1" && fabs(placement_pos.x()- 0.785) < 1e-3 &&
+          if (casted_state->GetAttatchedObject() == "cube_M_1" && fabs(placement_pos.x()- 0.84) < 1e-3 &&
               fabs(placement_pos.y() - 0.233887) < 1e-3) {
             std::cout << "Stoped in a BR, trying T goal placement oncircle is: " << found << std::endl;
             char c;
@@ -1706,7 +1706,7 @@ Cases:
             if (!ComputeIK(robot_base_tf_inverse * object.second.pose_ * placement * stable_object_pose *
                                (*casted_state->GetGrasp()),
                            joint_goal)) {
-              if (casted_state->GetAttatchedObject() == "cube_T_1" && fabs(placement_pos.x() - 0.785) < 1e-3 &&
+              if (casted_state->GetAttatchedObject() == "cube_M_1" && fabs(placement_pos.x() - 0.84) < 1e-3 &&
                   fabs(placement_pos.y() - 0.233887) < 1e-3) {
                 std::cout << "Stoped in a BR, trying T goal placement compute ik is: false" << std::endl;
                 char c;
@@ -1715,9 +1715,10 @@ Cases:
               continue;
             }
             // std::cout << "creating PlaceAction" << std::endl;
-            if (casted_state->GetAttatchedObject() == "cube_T_1" && fabs(placement_pos.x() - 0.785) < 1e-3 &&
-                fabs(placement_pos.y() - 0.233887) < 1e-3) {
-              std::cout << "Stoped in a BR, trying T goal placement compute ik is: true" << std::endl;
+            if (casted_state->GetAttatchedObject() == "cube_M_1" &&
+                fabs((object.second.pose_ * placement * stable_object_pose).translation().x() - 0.84) < 1e-3 &&
+                fabs((object.second.pose_ * placement * stable_object_pose).translation().y() - 0.233887) < 1e-3) {
+              std::cout << "Stoped in a BR, trying M goal placement compute ik is: true" << std::endl;
               char c;
               std::cin >> c;
             }

@@ -22,16 +22,20 @@
       <obj>
          <name>cube_T_1</name>
          <geom>cube_T.stl</geom>
-         <pose>1.000 0.000 0.000 0.77 0.000 1.000 0.000 -0.15 0.000 0.000 1.000 0.767</pose>
+         <!-- <pose>1.000 0.000 0.000 0.77 0.000 1.000 0.000 -0.15 0.000 0.000 1.000 0.767</pose> -->
+         <pose>1.000 0.000 0.000 0.77 0.000 1.000 0.000 0.233887 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
          <grasps>
             <gc type="side">
-               <template>1.000 0.000 0.000 0.000 0.000 1.000 0.000 0.000 0.000 0.000 1.000 0.120</template>
-               <axis>0.0 0.0 1.0</axis>
+               <template>1.000
+                  0.000 0.000 0.000 0.000 1.000 0.000 0.000 0.000 0.000 1.000 0.120</template>
+               <axis>0.0
+                  0.0 1.0</axis>
             </gc>
          </grasps>
          <sop>
-            <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0</template> <!-- all z-rotations of the -->
+            <template>1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0
+               1.0</template> <!-- all z-rotations of the -->
             <axis>0.0 0.0 1.0</axis> <!-- "natural" position     -->
             <distance>0.0</distance>
          </sop>
@@ -75,7 +79,7 @@
       <obj>
          <name>cube_R_1</name>
          <geom>cube_R.stl</geom>
-         <pose>1.000 0.000 0.000 0.905814 0.000 1.000 0.000 0.195063 0.000 0.000 1.000 0.767</pose>
+         <pose>1.000 0.000 0.000 0.995814 0.000 1.000 0.000 0.195063 0.000 0.000 1.000 0.767</pose>
          <moveable>true</moveable>
          <grasps>
             <gc type="side">
